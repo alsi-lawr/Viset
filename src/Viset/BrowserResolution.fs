@@ -55,6 +55,47 @@ module internal BrowserManagementInternals =
 
     let private supportedPlatforms = [| "linux-x64"; "win-x64"; "osx-arm64" |]
 
+    let private canonicalPlatform runtimeIdentifier url sha256 executableLayout =
+        { RuntimeIdentifier = runtimeIdentifier
+          Url = Uri url
+          Sha256 = sha256
+          ExecutableLayout = executableLayout }
+
+    let canonicalBrowserLock =
+        let platforms = Dictionary<string, BrowserPlatformLock>(StringComparer.Ordinal)
+
+        platforms.Add(
+            "linux-x64",
+            canonicalPlatform
+                "linux-x64"
+                "https://storage.googleapis.com/chrome-for-testing-public/150.0.7871.124/linux64/chrome-linux64.zip"
+                "ccb11556d5946fcf15f09d175c34d8e4b4293a8ef2eb7c4efc28cb60ac4d12fd"
+                "chrome-linux64/chrome"
+        )
+
+        platforms.Add(
+            "win-x64",
+            canonicalPlatform
+                "win-x64"
+                "https://storage.googleapis.com/chrome-for-testing-public/150.0.7871.124/win64/chrome-win64.zip"
+                "65fff74a602e0487fac43a148229b56d859070ac1b0e3d002d21d8edae3cfafe"
+                "chrome-win64/chrome.exe"
+        )
+
+        platforms.Add(
+            "osx-arm64",
+            canonicalPlatform
+                "osx-arm64"
+                "https://storage.googleapis.com/chrome-for-testing-public/150.0.7871.124/mac-arm64/chrome-mac-arm64.zip"
+                "36c8b5fe04c08a418a172206bb392600ec1550941bde6af2d4353df21db87a47"
+                "chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing"
+        )
+
+        { LockPath = "compiled browser contract"
+          BrowserVersion = "150.0.7871.124"
+          Revision = "r1639810"
+          Platforms = platforms }
+
     let private nonEmptyString (value: string | null) =
         value |> Option.ofObj |> Option.filter (String.IsNullOrWhiteSpace >> not)
 
@@ -131,7 +172,12 @@ module internal BrowserManagementInternals =
             match Uri.TryCreate(urlText, UriKind.Absolute) with
             | true, parsed ->
                 match Option.ofObj parsed with
-                | Some value when value.Scheme = Uri.UriSchemeHttps || value.Scheme = Uri.UriSchemeHttp -> value
+                | Some value when
+                    value.Scheme = Uri.UriSchemeHttps
+                    && String.Equals(value.Host, "storage.googleapis.com", StringComparison.Ordinal)
+                    && value.IsDefaultPort
+                    ->
+                    value
                 | _ ->
                     raise (
                         InvalidDataException(
@@ -150,7 +196,7 @@ module internal BrowserManagementInternals =
           Sha256 = validateSha256 runtimeIdentifier model.Sha256
           ExecutableLayout = validateExecutableLayout runtimeIdentifier model.Executable }
 
-    let loadBrowserLock (lockPath: string) =
+    let private parseBrowserLock (lockPath: string) =
         try
             if String.IsNullOrWhiteSpace lockPath then
                 Error "browser-lock.toml path must not be empty."
@@ -211,6 +257,39 @@ module internal BrowserManagementInternals =
                       Platforms = platforms }
         with error ->
             Error(String.Concat("Failed to read browser-lock.toml: ", error.Message))
+
+    let private browserLocksEqual (candidate: BrowserLock) =
+        let canonical = canonicalBrowserLock
+
+        String.Equals(candidate.BrowserVersion, canonical.BrowserVersion, StringComparison.Ordinal)
+        && String.Equals(candidate.Revision, canonical.Revision, StringComparison.Ordinal)
+        && candidate.Platforms.Count = canonical.Platforms.Count
+        && supportedPlatforms
+           |> Array.forall (fun runtimeIdentifier ->
+               match
+                   candidate.Platforms.TryGetValue runtimeIdentifier, canonical.Platforms.TryGetValue runtimeIdentifier
+               with
+               | (true, candidatePlatform), (true, canonicalPlatform) ->
+                   candidatePlatform.Url = canonicalPlatform.Url
+                   && String.Equals(candidatePlatform.Sha256, canonicalPlatform.Sha256, StringComparison.Ordinal)
+                   && String.Equals(
+                       candidatePlatform.ExecutableLayout,
+                       canonicalPlatform.ExecutableLayout,
+                       StringComparison.Ordinal
+                   )
+               | _ -> false)
+
+    let loadTrustedBrowserLock (lockPath: string option) =
+        match lockPath with
+        | None -> Ok canonicalBrowserLock
+        | Some path ->
+            match parseBrowserLock path with
+            | Ok candidate when browserLocksEqual candidate -> Ok candidate
+            | Ok _ -> Error "browser-lock.toml does not match the compiled trusted browser contract."
+            | Error message -> Error message
+
+    let validateBrowserLockSidecar lockPath =
+        loadTrustedBrowserLock (Some lockPath) |> Result.map ignore
 
     let cacheRootForRuntime (runtimeIdentifier: string) =
         let environmentRoot variableName segments =
@@ -382,6 +461,44 @@ module internal BrowserManagementInternals =
                               Version = version }
         }
 
+    let validateManagedBrowserAsync expectedVersion executablePath cancellationToken =
+        task {
+            try
+                let file = FileInfo(Path.GetFullPath executablePath)
+
+                if file.LinkTarget |> Option.ofObj |> Option.isSome then
+                    return Error(String.Concat("Managed browser executable is a symbolic link: ", executablePath))
+                elif file.Exists && file.Attributes.HasFlag FileAttributes.ReparsePoint then
+                    return Error(String.Concat("Managed browser executable is a reparse point: ", executablePath))
+                else
+                    let mutable current = file.Directory |> Option.ofObj
+                    let mutable unsafeAncestor = None
+
+                    while current.IsSome && unsafeAncestor.IsNone do
+                        let directory = current.Value
+
+                        if
+                            directory.LinkTarget |> Option.ofObj |> Option.isSome
+                            || directory.Exists && directory.Attributes.HasFlag FileAttributes.ReparsePoint
+                        then
+                            unsafeAncestor <- Some directory.FullName
+
+                        current <- directory.Parent |> Option.ofObj
+
+                    match unsafeAncestor with
+                    | Some path ->
+                        return Error(String.Concat("Managed browser executable has a link or reparse ancestor: ", path))
+                    | None ->
+                        return!
+                            validateBrowserAsync
+                                BrowserOrigin.ManagedCache
+                                (Some expectedVersion)
+                                executablePath
+                                cancellationToken
+            with error ->
+                return Error(String.Concat("Managed browser cache validation failed: ", error.Message))
+        }
+
     let private pathCandidates (executableName: string) =
         match Environment.GetEnvironmentVariable "PATH" |> nonEmptyString with
         | None -> Seq.empty
@@ -445,30 +562,13 @@ module internal BrowserManagementInternals =
 
         candidates |> Seq.filter (fun (_, path) -> File.Exists path) |> Seq.toList
 
-    let locateBrowserLock (baseDirectory: string) (currentDirectory: string) =
+    let locateBrowserLockSidecar (baseDirectory: string) =
         let basePath = Path.Combine(baseDirectory, browserLockFileName)
 
         if File.Exists basePath then
-            Ok(Path.GetFullPath basePath)
+            Some(Path.GetFullPath basePath)
         else
-            let rec findFrom (directory: DirectoryInfo) =
-                let candidate = Path.Combine(directory.FullName, browserLockFileName)
-
-                if File.Exists candidate then
-                    Some(Path.GetFullPath candidate)
-                else
-                    match directory.Parent |> Option.ofObj with
-                    | Some parent -> findFrom parent
-                    | None -> None
-
-            try
-                match findFrom (DirectoryInfo currentDirectory) with
-                | Some path -> Ok path
-                | None ->
-                    Error
-                        "browser-lock.toml was not found beside the Viset executable or in the current directory tree."
-            with error ->
-                Error(String.Concat("browser-lock.toml could not be located: ", error.Message))
+            None
 
 module BrowserResolution =
     let private tryManagedAsync
@@ -478,43 +578,38 @@ module BrowserResolution =
         (cancellationToken: CancellationToken)
         =
         task {
-            match lockPath with
-            | None -> return Ok None
-            | Some path when not (File.Exists path) -> return Ok None
-            | Some path ->
-                match BrowserManagementInternals.loadBrowserLock path with
-                | Error message -> return Error message
-                | Ok browserLock ->
-                    match browserLock.Platforms.TryGetValue runtimeIdentifier with
-                    | false, _ -> return Ok None
-                    | true, platform ->
-                        let rootResult =
-                            match cacheRoot with
-                            | Some root when not (String.IsNullOrWhiteSpace root) -> Ok(Path.GetFullPath root)
-                            | Some _ -> Error "Managed browser cache path must not be empty."
-                            | None -> BrowserManagementInternals.cacheRootForRuntime runtimeIdentifier
+            match BrowserManagementInternals.loadTrustedBrowserLock lockPath with
+            | Error message -> return Error message
+            | Ok browserLock ->
+                match browserLock.Platforms.TryGetValue runtimeIdentifier with
+                | false, _ -> return Ok None
+                | true, platform ->
+                    let rootResult =
+                        match cacheRoot with
+                        | Some root when not (String.IsNullOrWhiteSpace root) -> Ok(Path.GetFullPath root)
+                        | Some _ -> Error "Managed browser cache path must not be empty."
+                        | None -> BrowserManagementInternals.cacheRootForRuntime runtimeIdentifier
 
-                        match rootResult with
-                        | Error _ -> return Ok None
-                        | Ok root ->
-                            let target =
-                                BrowserManagementInternals.targetDirectory root browserLock runtimeIdentifier
+                    match rootResult with
+                    | Error _ -> return Ok None
+                    | Ok root ->
+                        let target =
+                            BrowserManagementInternals.targetDirectory root browserLock runtimeIdentifier
 
-                            let executable = BrowserManagementInternals.executablePath target platform
+                        let executable = BrowserManagementInternals.executablePath target platform
 
-                            if not (File.Exists executable) then
-                                return Ok None
-                            else
-                                let! validation =
-                                    BrowserManagementInternals.validateBrowserAsync
-                                        BrowserOrigin.ManagedCache
-                                        (Some browserLock.BrowserVersion)
-                                        executable
-                                        cancellationToken
+                        if not (File.Exists executable) then
+                            return Ok None
+                        else
+                            let! validation =
+                                BrowserManagementInternals.validateManagedBrowserAsync
+                                    browserLock.BrowserVersion
+                                    executable
+                                    cancellationToken
 
-                                match validation with
-                                | Ok browser -> return Ok(Some browser)
-                                | Error _ -> return Ok None
+                            match validation with
+                            | Ok browser -> return Ok(Some browser)
+                            | Error _ -> return Ok None
         }
 
     let rec private trySystemAsync candidates cancellationToken =

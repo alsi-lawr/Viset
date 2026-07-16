@@ -27,22 +27,19 @@ module Program =
             Console.Out.WriteLine(String.Concat(kind, ": ", capture.OutputRelativePath)))
 
     let private installBrowser () =
-        match BrowserInstall.locateBrowserLock AppContext.BaseDirectory Environment.CurrentDirectory with
+        let sidecar = BrowserInstall.findBrowserLockSidecar AppContext.BaseDirectory
+
+        match
+            BrowserInstall.installAsync sidecar CancellationToken.None
+            |> fun work -> work.GetAwaiter().GetResult()
+        with
         | Error message ->
             writeErrors [ message ]
             3
-        | Ok lockPath ->
-            match
-                BrowserInstall.installAsync lockPath CancellationToken.None
-                |> fun work -> work.GetAwaiter().GetResult()
-            with
-            | Error message ->
-                writeErrors [ message ]
-                3
-            | Ok browser ->
-                Console.Out.WriteLine(String.Concat("installed browser: ", browser.ExecutablePath))
-                Console.Out.WriteLine(String.Concat("version: ", browser.Version))
-                0
+        | Ok browser ->
+            Console.Out.WriteLine(String.Concat("installed browser: ", browser.ExecutablePath))
+            Console.Out.WriteLine(String.Concat("version: ", browser.Version))
+            0
 
     [<EntryPoint>]
     let main arguments =
