@@ -171,24 +171,23 @@ VISET_BROWSER="$browser" VISET_EXAMPLE_PORT="$medium_port" VISET_EXAMPLE_PYTHON=
 assert_port_closed "$medium_port"
 medium_port=$(free_port)
 VISET_BROWSER="$browser" VISET_EXAMPLE_PORT="$medium_port" VISET_EXAMPLE_PYTHON="$python" \
-  "$binary" capture "$root/examples/medium/scroll.lua" --output "$medium_output"
+  "$binary" capture "$root/examples/medium/home-scroll.lua" --output "$medium_output"
 assert_port_closed "$medium_port"
 "$python" "$root/acceptance/verify-output.py" \
   "$medium_output" \
-  --fps 40 \
-  --media-size screenshots/desktop-light.png=1088x720 \
-  --media-size screenshots/phone-light.png=924x1624 \
-  --media-size animations/desktop-light-scroll.webp=1088x720 \
-  --media-size animations/desktop-dark-scroll.webp=1088x720 \
-  --media-size animations/phone-light-scroll.webp=924x1624 \
-  --media-size animations/phone-dark-scroll.webp=924x1624 \
-  screenshots/desktop-light.png \
-  screenshots/desktop-dark.png \
+  --media-size screenshots/laptop-light.png=1308x840 \
+  --media-size screenshots/phone-light.png=462x956 \
+  --media-size animations/laptop-light-home-scroll.webp=1308x840 \
+  --media-size animations/laptop-dark-home-scroll.webp=1308x840 \
+  --media-size animations/phone-light-home-scroll.webp=462x956 \
+  --media-size animations/phone-dark-home-scroll.webp=462x956 \
+  screenshots/laptop-light.png \
+  screenshots/laptop-dark.png \
   screenshots/phone-light.png \
   screenshots/phone-dark.png \
-  animations/desktop-light-scroll.webp \
-  animations/desktop-dark-scroll.webp \
-  animations/phone-light-scroll.webp \
-  animations/phone-dark-scroll.webp
+  animations/laptop-light-home-scroll.webp \
+  animations/laptop-dark-home-scroll.webp \
+  animations/phone-light-home-scroll.webp \
+  animations/phone-dark-home-scroll.webp
 
 printf 'fixture output: %s\n' "$output"

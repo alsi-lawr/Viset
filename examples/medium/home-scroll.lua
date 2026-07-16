@@ -2,31 +2,31 @@
 # viset
 version = 1
 output_root = "output"
-output = "animations/{device}-{theme}-scroll.webp"
+output = "animations/{device}-{theme}-home-scroll.webp"
 frame = "builtin:auto"
-frames_per_second = 40
-browser_arguments = []
+frames_per_second = 30
+browser_arguments = ["--hide-scrollbars"]
 
-[devices.desktop]
+[devices.laptop]
 mobile = false
 touch = false
 device_scale = 1.0
 
-[devices.desktop.viewport]
-width = 960
-height = 600
+[devices.laptop.viewport]
+width = 1180
+height = 720
 
 [devices.phone]
 mobile = true
 touch = true
-device_scale = 2.0
+device_scale = 1.0
 
 [devices.phone.viewport]
 width = 390
-height = 700
+height = 844
 
 [matrix]
-device = ["desktop", "phone"]
+device = ["laptop", "phone"]
 theme = ["light", "dark"]
 ]]
 
@@ -51,31 +51,39 @@ local succeeded, failure = pcall(function()
   local device = viset.context.device
   local quoted_theme = string.format("%q", theme)
   local quoted_device = string.format("%q", device.name)
-  local cycles = device.touch and 2 or 1
-  local duration = device.touch and "3000ms" or "2500ms"
 
   viset.http.wait({ url = url, timeout = "10s" })
   viset.page.navigate(url)
-  viset.page.wait_for("window.dashboard !== undefined", "10s")
+  viset.page.wait_for("window.blokeBot !== undefined", "10s")
   viset.page.evaluate(string.format(
-    "(async()=>{window.dashboard.render(%s,%s,0);window.dashboard.scroll(0,%d);await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));return true})()",
+    "(async()=>{window.blokeBot.render(%s,%s);await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));return true})()",
     quoted_theme,
-    quoted_device,
-    cycles
+    quoted_device
   ))
 
   local recording = viset.record()
   recording:start()
-  recording:during(duration, function()
-    viset.page.animate({
-      duration = duration,
-      easing = "linear",
-      update = string.format(
-        "frame=>window.dashboard.scroll(frame.linear_progress,%d)",
-        cycles
-      ),
-    })
-  end)
+  recording:during("800ms")
+
+  local function capture_gesture(start_ratio, end_ratio)
+    recording:during("700ms", function()
+      viset.page.animate({
+        duration = "700ms",
+        easing = "in_out_sine",
+        update = string.format(
+          "frame=>window.blokeBot.gesture(%s,%s,frame.progress)",
+          start_ratio,
+          end_ratio
+        ),
+      })
+    end)
+    viset.page.evaluate("window.blokeBot.touch(false)")
+  end
+
+  capture_gesture(0, 0.48)
+  recording:during("250ms")
+  capture_gesture(0.48, 1)
+  recording:during("500ms")
   recording:stop()
 end)
 
