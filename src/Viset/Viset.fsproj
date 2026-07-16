@@ -9,12 +9,15 @@
     <IsAotCompatible>true</IsAotCompatible>
     <OptimizationPreference>Size</OptimizationPreference>
     <StripSymbols>true</StripSymbols>
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);IL2104;IL3053</WarningsNotAsErrors>
   </PropertyGroup>
 
   <ItemGroup>
     <Compile Include="Domain.fs" />
+    <Compile Include="BuiltInFrames.fs" />
     <Compile Include="Cli.fs" />
-    <Compile Include="Matrix.fs" />
+    <Compile Include="Scaffold.fs" />
+    <Compile Include="CaptureScript.fs" />
     <Compile Include="Cdp.fs" />
     <Compile Include="BrowserSession.fs" />
     <Compile Include="BrowserResolution.fs" />
@@ -22,6 +25,7 @@
     <Compile Include="Media.fs" />
     <Compile Include="Frame.fs" />
     <Compile Include="Capture.fs" />
+    <Compile Include="Recording.fs" />
     <Compile Include="Output.fs" />
     <Compile Include="LuaHost.fs" />
     <Compile Include="Program.fs" />

@@ -10,8 +10,6 @@ namespace Viset.Serialization;
     DuplicateKeyHandling = TomlDuplicateKeyHandling.Error,
     MaxDepth = 64
 )]
-[TomlSerializable(typeof(MatrixTomlModel))]
+[TomlSerializable(typeof(CaptureTomlModel))]
 [TomlSerializable(typeof(BrowserLockTomlModel))]
-[TomlSerializable(typeof(OutputMarkerTomlModel))]
-[TomlSerializable(typeof(OutputManifestTomlModel))]
 internal partial class TomlModelContext : TomlSerializerContext;

@@ -68,11 +68,20 @@ type CdpTimeoutException(methodName: string, timeout: TimeSpan) =
 type CdpConnectionException(message: string, innerException: Exception) =
     inherit Exception(message, innerException)
 
+type CdpScreencastFrame =
+    { Bytes: byte array
+      Timestamp: TimeSpan
+      SessionId: int }
+
+    override frame.ToString() =
+        frame.Timestamp.TotalMilliseconds.ToString("0.00", CultureInfo.InvariantCulture)
+
 type CdpClient private (socket: ClientWebSocket, commandTimeout: TimeSpan) =
     let pending =
         ConcurrentDictionary<int64, TaskCompletionSource<CdpIncomingMessageModel>>()
 
-    let events = Channel.CreateUnbounded<CdpIncomingMessageModel>()
+    let pageLoadEvents = Channel.CreateUnbounded<CdpIncomingMessageModel>()
+    let screencastEvents = Channel.CreateUnbounded<CdpIncomingMessageModel>()
     let sendLock = new SemaphoreSlim(1, 1)
     let readerCancellation = new CancellationTokenSource()
     let mutable nextId = 0L
@@ -93,7 +102,21 @@ type CdpClient private (socket: ClientWebSocket, commandTimeout: TimeSpan) =
             | true, completion -> completion.TrySetException error |> ignore
             | false, _ -> ()
 
-        events.Writer.TryComplete error |> ignore
+        pageLoadEvents.Writer.TryComplete error |> ignore
+        screencastEvents.Writer.TryComplete error |> ignore
+
+    let eventChannel methodName =
+        match methodName with
+        | "Page.loadEventFired" -> pageLoadEvents
+        | "Page.screencastFrame" -> screencastEvents
+        | _ -> invalidArg (nameof methodName) (String.Concat("Unsupported CDP event: ", methodName))
+
+    let clearEvents methodName =
+        let channel = eventChannel methodName
+        let mutable ignored = Unchecked.defaultof<CdpIncomingMessageModel>
+
+        while channel.Reader.TryRead(&ignored) do
+            ()
 
     let readLoop () =
         task {
@@ -124,8 +147,11 @@ type CdpClient private (socket: ClientWebSocket, commandTimeout: TimeSpan) =
                             match pending.TryRemove incoming.Id.Value with
                             | true, completion -> completion.TrySetResult incoming |> ignore
                             | false, _ -> ()
-                        elif not (String.IsNullOrWhiteSpace incoming.Method) then
-                            events.Writer.TryWrite incoming |> ignore
+                        else
+                            match incoming.Method with
+                            | "Page.loadEventFired" -> pageLoadEvents.Writer.TryWrite incoming |> ignore
+                            | "Page.screencastFrame" -> screencastEvents.Writer.TryWrite incoming |> ignore
+                            | _ -> ()
                 with
                 | :? OperationCanceledException when readerCancellation.IsCancellationRequested ->
                     failPending (OperationCanceledException "The CDP reader was stopped.")
@@ -206,26 +232,31 @@ type CdpClient private (socket: ClientWebSocket, commandTimeout: TimeSpan) =
             this.RequireSuccess runtime |> ignore
         }
 
-    member this.WaitForEventAsync(methodName: string, cancellationToken: CancellationToken) =
+    member private _.ReadEventAsync(methodName: string, cancellationToken: CancellationToken) =
         task {
+            let channel = eventChannel methodName
+
             use timeoutCancellation =
                 CancellationTokenSource.CreateLinkedTokenSource cancellationToken
 
             timeoutCancellation.CancelAfter commandTimeout
 
             try
-                let mutable matched = false
-
-                while not matched do
-                    let! incoming = events.Reader.ReadAsync(timeoutCancellation.Token).AsTask()
-                    matched <- String.Equals(incoming.Method, methodName, StringComparison.Ordinal)
+                return! channel.Reader.ReadAsync(timeoutCancellation.Token).AsTask()
             with :? OperationCanceledException when not cancellationToken.IsCancellationRequested ->
                 return raise (CdpTimeoutException(methodName, commandTimeout))
+        }
+
+    member this.WaitForEventAsync(methodName: string, cancellationToken: CancellationToken) =
+        task {
+            let! _ = this.ReadEventAsync(methodName, cancellationToken)
+            return ()
         }
 
     member this.NavigateAsync(url: Uri, cancellationToken: CancellationToken) =
         task {
             ArgumentNullException.ThrowIfNull url
+            clearEvents "Page.loadEventFired"
 
             use loadCancellation =
                 CancellationTokenSource.CreateLinkedTokenSource cancellationToken
@@ -418,6 +449,75 @@ type CdpClient private (socket: ClientWebSocket, commandTimeout: TimeSpan) =
                 this.RequireSuccess response |> CdpJsonModels.DeserializeScreenshotResult
 
             return Convert.FromBase64String result.Data
+        }
+
+    member this.StartScreencastAsync(width: int, height: int, cancellationToken: CancellationToken) =
+        task {
+            if width <= 0 || height <= 0 then
+                invalidArg (nameof width) "Screencast dimensions must be positive."
+
+            let parameters =
+                CdpScreencastParameters(MaxWidth = width, MaxHeight = height, EveryNthFrame = 1)
+
+            clearEvents "Page.screencastFrame"
+
+            let! response =
+                this.SendCommandAsync(
+                    "Page.startScreencast",
+                    (fun id -> CdpJsonModels.SerializeCommand(id, "Page.startScreencast", parameters)),
+                    cancellationToken
+                )
+
+            this.RequireSuccess response |> ignore
+        }
+
+    member this.StartScreencastAsync(cancellationToken: CancellationToken) =
+        task {
+            clearEvents "Page.screencastFrame"
+            let parameters = CdpScreencastParameters(EveryNthFrame = 1)
+
+            let! response =
+                this.SendCommandAsync(
+                    "Page.startScreencast",
+                    (fun id -> CdpJsonModels.SerializeCommand(id, "Page.startScreencast", parameters)),
+                    cancellationToken
+                )
+
+            this.RequireSuccess response |> ignore
+        }
+
+    member this.ReadScreencastFrameAsync(cancellationToken: CancellationToken) =
+        task {
+            let! incoming = this.ReadEventAsync("Page.screencastFrame", cancellationToken)
+            let frame = CdpJsonModels.DeserializeScreencastFrame incoming.Parameters
+
+            return
+                { Bytes = Convert.FromBase64String frame.Data
+                  Timestamp = TimeSpan.FromSeconds frame.Metadata.Timestamp
+                  SessionId = frame.SessionId }
+        }
+
+    member this.AcknowledgeScreencastFrameAsync(sessionId: int, cancellationToken: CancellationToken) =
+        task {
+            if sessionId < 0 then
+                invalidArg (nameof sessionId) "Screencast session ID must be non-negative."
+
+            let parameters = CdpScreencastFrameAckParameters(SessionId = sessionId)
+
+            let! response =
+                this.SendCommandAsync(
+                    "Page.screencastFrameAck",
+                    (fun id -> CdpJsonModels.SerializeCommand(id, "Page.screencastFrameAck", parameters)),
+                    cancellationToken
+                )
+
+            this.RequireSuccess response |> ignore
+        }
+
+    member this.StopScreencastAsync(cancellationToken: CancellationToken) =
+        task {
+            let! response = this.SendEmptyAsync("Page.stopScreencast", cancellationToken)
+            this.RequireSuccess response |> ignore
         }
 
     member private _.DisposeCoreAsync() =

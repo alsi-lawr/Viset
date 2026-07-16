@@ -1,3 +1,4 @@
 .agent-workspace/
+BenchmarkDotNet.Artifacts/
 **/bin/
 **/obj/

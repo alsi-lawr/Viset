@@ -321,11 +321,16 @@ type BrowserSession
                     raise (InvalidOperationException(String.Join(" ", failures)))
         }
 
-    member private this.RunAsync<'T>(operationName: string, operation: unit -> Task<'T>) =
+    member private this.RunAsync<'T>
+        (operationName: string, cancellationToken: CancellationToken, operation: unit -> Task<'T>)
+        =
         task {
             try
                 return! operation ()
-            with error ->
+            with
+            | :? OperationCanceledException when cancellationToken.IsCancellationRequested ->
+                return raise (OperationCanceledException cancellationToken)
+            | error ->
                 let mutable cleanupFailure = None
 
                 try
@@ -353,10 +358,10 @@ type BrowserSession
         }
 
     member this.NavigateAsync(url: Uri, cancellationToken: CancellationToken) =
-        this.RunAsync("navigate", fun () -> client.NavigateAsync(url, cancellationToken))
+        this.RunAsync("navigate", cancellationToken, fun () -> client.NavigateAsync(url, cancellationToken))
 
     member this.EvaluateAsync(expression: string, cancellationToken: CancellationToken) =
-        this.RunAsync("evaluate", fun () -> client.EvaluateAsync(expression, cancellationToken))
+        this.RunAsync("evaluate", cancellationToken, fun () -> client.EvaluateAsync(expression, cancellationToken))
 
     member this.ConfigureEmulationAsync
         (
@@ -369,17 +374,49 @@ type BrowserSession
         ) =
         this.RunAsync(
             "configure emulation",
+            cancellationToken,
             fun () -> client.ConfigureEmulationAsync(width, height, deviceScaleFactor, mobile, touch, cancellationToken)
         )
 
     member this.SetTransparentBackgroundAsync(cancellationToken: CancellationToken) =
-        this.RunAsync("set transparent background", fun () -> client.SetTransparentBackgroundAsync cancellationToken)
+        this.RunAsync(
+            "set transparent background",
+            cancellationToken,
+            fun () -> client.SetTransparentBackgroundAsync cancellationToken
+        )
 
     member this.TouchAsync(x: double, y: double, cancellationToken: CancellationToken) =
-        this.RunAsync("dispatch touch", fun () -> client.TouchAsync(x, y, cancellationToken))
+        this.RunAsync("dispatch touch", cancellationToken, fun () -> client.TouchAsync(x, y, cancellationToken))
 
     member this.CapturePngAsync(cancellationToken: CancellationToken) =
-        this.RunAsync("capture PNG", fun () -> client.CapturePngAsync cancellationToken)
+        this.RunAsync("capture PNG", cancellationToken, fun () -> client.CapturePngAsync cancellationToken)
+
+    member this.StartScreencastAsync(width: int, height: int, cancellationToken: CancellationToken) =
+        this.RunAsync(
+            "start screencast",
+            cancellationToken,
+            fun () -> client.StartScreencastAsync(width, height, cancellationToken)
+        )
+
+    member this.StartScreencastAsync(cancellationToken: CancellationToken) =
+        this.RunAsync("start screencast", cancellationToken, fun () -> client.StartScreencastAsync cancellationToken)
+
+    member this.ReadScreencastFrameAsync(cancellationToken: CancellationToken) =
+        this.RunAsync(
+            "read screencast frame",
+            cancellationToken,
+            fun () -> client.ReadScreencastFrameAsync cancellationToken
+        )
+
+    member this.AcknowledgeScreencastFrameAsync(sessionId: int, cancellationToken: CancellationToken) =
+        this.RunAsync(
+            "acknowledge screencast frame",
+            cancellationToken,
+            fun () -> client.AcknowledgeScreencastFrameAsync(sessionId, cancellationToken)
+        )
+
+    member this.StopScreencastAsync(cancellationToken: CancellationToken) =
+        this.RunAsync("stop screencast", cancellationToken, fun () -> client.StopScreencastAsync cancellationToken)
 
     interface IAsyncDisposable with
         member _.DisposeAsync() = ValueTask(this.DisposeCoreAsync())

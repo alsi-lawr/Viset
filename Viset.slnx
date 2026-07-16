@@ -1,4 +1,7 @@
 <Solution>
   <Project Path="src/Viset/Viset.fsproj" />
+  <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/Viset.Benchmarks/Viset.Benchmarks.fsproj" />
+  </Folder>
   <Project Path="src/Viset.Serialization/Viset.Serialization.csproj" />
 </Solution>

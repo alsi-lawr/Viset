@@ -64,6 +64,24 @@ public static class CdpJsonModels
         CdpScreenshotParameters parameters
     ) => SerializeCommand(id, method, parameters, CdpJsonContext.Default.CdpScreenshotParameters);
 
+    public static byte[] SerializeCommand(
+        long id,
+        string method,
+        CdpScreencastParameters parameters
+    ) => SerializeCommand(id, method, parameters, CdpJsonContext.Default.CdpScreencastParameters);
+
+    public static byte[] SerializeCommand(
+        long id,
+        string method,
+        CdpScreencastFrameAckParameters parameters
+    ) =>
+        SerializeCommand(
+            id,
+            method,
+            parameters,
+            CdpJsonContext.Default.CdpScreencastFrameAckParameters
+        );
+
     public static CdpIncomingMessageModel DeserializeIncoming(byte[] utf8Json) =>
         JsonSerializer.Deserialize(utf8Json, CdpJsonContext.Default.CdpIncomingMessageModel)
         ?? throw new JsonException("CDP returned an empty message.");
@@ -83,6 +101,10 @@ public static class CdpJsonModels
     public static CdpScreenshotResultModel DeserializeScreenshotResult(JsonElement element) =>
         element.Deserialize(CdpJsonContext.Default.CdpScreenshotResultModel)
         ?? throw new JsonException("Page.captureScreenshot returned no result.");
+
+    public static CdpScreencastFrameModel DeserializeScreencastFrame(JsonElement element) =>
+        element.Deserialize(CdpJsonContext.Default.CdpScreencastFrameModel)
+        ?? throw new JsonException("Page.screencastFrame returned no parameters.");
 
     private static byte[] SerializeCommand<TParameters>(
         long id,
@@ -225,6 +247,24 @@ public sealed class CdpScreenshotParameters
     public bool FromSurface { get; set; } = true;
 
     public bool CaptureBeyondViewport { get; set; }
+
+    public bool OptimizeForSpeed { get; set; } = true;
+}
+
+public sealed class CdpScreencastParameters
+{
+    public string Format { get; set; } = "png";
+
+    public int? MaxWidth { get; set; }
+
+    public int? MaxHeight { get; set; }
+
+    public int EveryNthFrame { get; set; } = 1;
+}
+
+public sealed class CdpScreencastFrameAckParameters
+{
+    public int SessionId { get; set; }
 }
 
 public sealed class CdpNavigateResultModel
@@ -266,4 +306,30 @@ public sealed class CdpExceptionDetailsModel
 public sealed class CdpScreenshotResultModel
 {
     public string Data { get; set; } = string.Empty;
+}
+
+public sealed class CdpScreencastFrameModel
+{
+    public string Data { get; set; } = string.Empty;
+
+    public CdpScreencastFrameMetadataModel Metadata { get; set; } = new();
+
+    public int SessionId { get; set; }
+}
+
+public sealed class CdpScreencastFrameMetadataModel
+{
+    public double Timestamp { get; set; }
+
+    public double DeviceWidth { get; set; }
+
+    public double DeviceHeight { get; set; }
+
+    public double PageScaleFactor { get; set; }
+
+    public double OffsetTop { get; set; }
+
+    public double ScrollOffsetX { get; set; }
+
+    public double ScrollOffsetY { get; set; }
 }

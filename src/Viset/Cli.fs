@@ -11,7 +11,8 @@ module Cli =
         String.Join(
             Environment.NewLine,
             [| "Usage:"
-               "  viset capture MATRIX [--output DIR] [--only ID] [--browser PATH]"
+               "  viset capture CAPTURE.lua [--output DIR] [--browser PATH] [--force]"
+               "  viset init [DIR] [-i|--interactive] [--force]"
                "  viset browser install"
                "  viset --version"
                "  viset --help" |]
@@ -30,15 +31,15 @@ module Cli =
             | :? NotSupportedException
             | :? PathTooLongException -> Error(String.Concat(label, " is not a valid path: ", value))
 
-    let private parseCapture currentDirectory matrixArgument optionArguments =
-        match resolvePath "MATRIX" currentDirectory matrixArgument with
+    let private parseCapture currentDirectory scriptArgument optionArguments =
+        match resolvePath "CAPTURE" currentDirectory scriptArgument with
         | Error message -> Error message
-        | Ok matrixPath when
-            not (String.Equals(Path.GetExtension matrixPath, ".toml", StringComparison.OrdinalIgnoreCase))
+        | Ok scriptPath when
+            not (String.Equals(Path.GetExtension scriptPath, ".lua", StringComparison.OrdinalIgnoreCase))
             ->
-            Error "MATRIX must be a TOML file with a .toml extension."
-        | Ok matrixPath ->
-            let rec parseOptions remaining outputPath onlyDefinitionId browserPath =
+            Error "CAPTURE must be a Lua file with a .lua extension."
+        | Ok scriptPath ->
+            let rec parseOptions remaining outputPath browserPath force =
                 let requireValue optionName (tail: string list) continuation =
                     match tail with
                     | value :: rest when not (value.StartsWith("--", StringComparison.Ordinal)) ->
@@ -48,44 +49,62 @@ module Cli =
                 match remaining with
                 | [] ->
                     Ok
-                        { MatrixPath = matrixPath
+                        { ScriptPath = scriptPath
                           OutputPath = outputPath
-                          OnlyDefinitionId = onlyDefinitionId
-                          BrowserPath = browserPath }
+                          BrowserPath = browserPath
+                          Force = force }
                 | "--output" :: tail when outputPath.IsSome -> Error "--output may be specified only once."
                 | "--output" :: tail ->
                     requireValue "--output" tail (fun value rest ->
                         match resolvePath "--output" currentDirectory value with
-                        | Ok path -> parseOptions rest (Some path) onlyDefinitionId browserPath
+                        | Ok path -> parseOptions rest (Some path) browserPath force
                         | Error message -> Error message)
-                | "--only" :: tail when onlyDefinitionId.IsSome -> Error "--only may be specified only once."
-                | "--only" :: tail ->
-                    requireValue "--only" tail (fun value rest ->
-                        if String.IsNullOrWhiteSpace value then
-                            Error "--only requires a non-empty definition ID."
-                        else
-                            parseOptions rest outputPath (Some value) browserPath)
                 | "--browser" :: tail when browserPath.IsSome -> Error "--browser may be specified only once."
                 | "--browser" :: tail ->
                     requireValue "--browser" tail (fun value rest ->
                         match resolvePath "--browser" currentDirectory value with
-                        | Ok path -> parseOptions rest outputPath onlyDefinitionId (Some path)
+                        | Ok path -> parseOptions rest outputPath (Some path) force
                         | Error message -> Error message)
+                | "--force" :: _ when force -> Error "--force may be specified only once."
+                | "--force" :: tail -> parseOptions tail outputPath browserPath true
                 | argument :: _ when argument.StartsWith("--", StringComparison.Ordinal) ->
                     Error(String.Concat("Unknown capture option: ", argument))
                 | argument :: _ -> Error(String.Concat("Unexpected capture argument: ", argument))
 
-            parseOptions optionArguments None None None
+            parseOptions optionArguments None None false
+
+    let private parseInit currentDirectory arguments =
+        let rec parseOptions remaining targetDirectory interactive force =
+            match remaining with
+            | [] ->
+                Ok
+                    { TargetDirectory = targetDirectory |> Option.defaultValue currentDirectory
+                      Interactive = interactive
+                      Force = force }
+            | ("-i" | "--interactive") :: _ when interactive -> Error "--interactive may be specified only once."
+            | ("-i" | "--interactive") :: tail -> parseOptions tail targetDirectory true force
+            | "--force" :: _ when force -> Error "--force may be specified only once."
+            | "--force" :: tail -> parseOptions tail targetDirectory interactive true
+            | argument :: _ when argument.StartsWith("-", StringComparison.Ordinal) ->
+                Error(String.Concat("Unknown init option: ", argument))
+            | _ :: _ when targetDirectory.IsSome -> Error "init accepts at most one target directory."
+            | directory :: tail ->
+                match resolvePath "DIR" currentDirectory directory with
+                | Ok path -> parseOptions tail (Some path) interactive force
+                | Error message -> Error message
+
+        parseOptions arguments None false false
 
     let parse currentDirectory arguments =
         match List.ofArray arguments with
         | [ "--help" ] -> Ok Command.Help
         | [ "--version" ] -> Ok Command.Version
         | [ "browser"; "install" ] -> Ok Command.BrowserInstall
-        | "capture" :: matrixArgument :: optionArguments ->
-            parseCapture currentDirectory matrixArgument optionArguments
+        | "init" :: arguments -> parseInit currentDirectory arguments |> Result.map Command.Init
+        | "capture" :: scriptArgument :: optionArguments ->
+            parseCapture currentDirectory scriptArgument optionArguments
             |> Result.map Command.Capture
         | [] -> Error "A command is required."
-        | "capture" :: [] -> Error "capture requires MATRIX."
+        | "capture" :: [] -> Error "capture requires CAPTURE.lua."
         | "browser" :: _ -> Error "The only supported browser command is: browser install"
         | command :: _ -> Error(String.Concat("Unknown command: ", command))

@@ -7,21 +7,32 @@ open System.Threading.Tasks
 
 type CaptureSession
     private
-    (primarySession: BrowserSession, browserOptions: BrowserSessionOptions, device: Device, framePath: string option) =
+    (
+        primarySession: BrowserSession,
+        browserOptions: BrowserSessionOptions,
+        device: Device,
+        frameSource: FrameSource option
+    ) =
     let mutable frameBrowser: BrowserSession option = None
     let mutable frameRenderer: FrameRenderer option = None
     let mutable disposed = 0
 
     member _.Page = primarySession
 
-    member _.CapturePngAsync(cancellationToken: CancellationToken) =
+    member _.CaptureRawPngAsync(cancellationToken: CancellationToken) =
         task {
             let! raw = primarySession.CapturePngAsync cancellationToken
             Media.validatePng raw |> ignore
+            return raw
+        }
 
-            match framePath with
+    member _.FramePngAsync(raw: byte array, cancellationToken: CancellationToken) =
+        task {
+            Media.validatePng raw |> ignore
+
+            match frameSource with
             | None -> return raw
-            | Some path ->
+            | Some source ->
                 let! renderer =
                     task {
                         match frameRenderer with
@@ -35,7 +46,7 @@ type CaptureSession
                                 let! renderer =
                                     FrameRenderer.StartAsync(
                                         browser,
-                                        path,
+                                        source,
                                         device,
                                         raw,
                                         browserOptions.CommandTimeout,
@@ -53,6 +64,12 @@ type CaptureSession
                 let! framed = renderer.CapturePngAsync cancellationToken
                 Media.validatePng framed |> ignore
                 return framed
+        }
+
+    member this.CapturePngAsync(cancellationToken: CancellationToken) =
+        task {
+            let! raw = this.CaptureRawPngAsync cancellationToken
+            return! this.FramePngAsync(raw, cancellationToken)
         }
 
     member private _.DisposeCoreAsync() =
@@ -92,19 +109,22 @@ type CaptureSession
         (
             browserOptions: BrowserSessionOptions,
             device: Device,
-            framePath: string option,
+            frameSource: FrameSource option,
             cancellationToken: CancellationToken
         ) =
         task {
             ArgumentNullException.ThrowIfNull browserOptions
 
-            framePath
-            |> Option.iter (fun path ->
-                if String.IsNullOrWhiteSpace path then
-                    invalidArg (nameof framePath) "Frame path must not be empty."
+            frameSource
+            |> Option.iter (fun source ->
+                match source with
+                | CustomFrame path ->
+                    if String.IsNullOrWhiteSpace path then
+                        invalidArg (nameof frameSource) "Frame path must not be empty."
 
-                if not (File.Exists path) then
-                    invalidArg (nameof framePath) (String.Concat("Frame HTML does not exist: ", path))
+                    if not (File.Exists path) then
+                        invalidArg (nameof frameSource) (String.Concat("Frame HTML does not exist: ", path))
+                | BuiltInFrame _ -> ()
 
                 if device.Frame.IsNone then
                     invalidArg (nameof device) "A framed capture requires device frame dimensions.")
@@ -123,7 +143,7 @@ type CaptureSession
                     )
 
                 do! browser.SetTransparentBackgroundAsync cancellationToken
-                return CaptureSession(browser, browserOptions, device, framePath)
+                return CaptureSession(browser, browserOptions, device, frameSource)
             with error ->
                 do! (browser :> IAsyncDisposable).DisposeAsync().AsTask()
                 return raise error

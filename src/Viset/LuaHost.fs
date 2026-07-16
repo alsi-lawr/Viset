@@ -6,14 +6,15 @@ open System.Diagnostics
 open System.Globalization
 open System.IO
 open System.Net.Http
+open System.Text
 open System.Text.Json
 open System.Threading
 open System.Threading.Tasks
 open Lua
 open Lua.Standard
 
-type private AdapterModuleLoader(adapterDirectory: string) =
-    let root = Path.GetFullPath adapterDirectory
+type private CaptureModuleLoader(scriptDirectory: string) =
+    let root = Path.GetFullPath scriptDirectory
 
     let comparison =
         if OperatingSystem.IsWindows() then
@@ -57,9 +58,11 @@ type private ManagedProcess(childProcess: Process, standardOutput: Task<string>,
 type private ActiveCase =
     { Planned: PlannedCapture
       Session: CaptureSession
-      Captures: ResizeArray<byte array> }
+      AnimationUpdateDurations: ResizeArray<TimeSpan>
+      mutable Snapshot: byte array option
+      mutable Recorder: RecordingController option }
 
-    override activeCase.ToString() = activeCase.Planned.LogicalName
+    override activeCase.ToString() = activeCase.Planned.OutputPath
 
 module private LuaHostInternals =
     let setValue (table: LuaTable) (key: string) (value: LuaValue) = table[LuaValue key] <- value
@@ -68,15 +71,14 @@ module private LuaHostInternals =
 
     let tryRead<'T> (value: LuaValue) =
         let mutable result = Unchecked.defaultof<'T>
-
         if value.TryRead<'T>(&result) then Some result else None
 
-    let requiredString (table: LuaTable) (key: string) =
+    let requiredString (table: LuaTable) key =
         match getValue table key |> tryRead<string> with
         | Some value when not (String.IsNullOrWhiteSpace value) -> value
         | _ -> invalidArg key (String.Concat(key, " is required and must be a non-empty string."))
 
-    let optionalString (table: LuaTable) (key: string) =
+    let optionalString (table: LuaTable) key =
         match getValue table key with
         | value when value.Type = LuaValueType.Nil -> None
         | value ->
@@ -84,7 +86,7 @@ module private LuaHostInternals =
             | Some text when not (String.IsNullOrWhiteSpace text) -> Some text
             | _ -> invalidArg key (String.Concat(key, " must be a non-empty string."))
 
-    let optionalNumber (table: LuaTable) (key: string) (defaultValue: double) =
+    let optionalNumber (table: LuaTable) key defaultValue =
         match getValue table key with
         | value when value.Type = LuaValueType.Nil -> defaultValue
         | value ->
@@ -92,7 +94,7 @@ module private LuaHostInternals =
             | Some number when Double.IsFinite number -> number
             | _ -> invalidArg key (String.Concat(key, " must be a finite number."))
 
-    let numberToInt (label: string) (value: double) =
+    let numberToInt label value =
         if
             not (Double.IsFinite value)
             || value < double Int32.MinValue
@@ -103,20 +105,10 @@ module private LuaHostInternals =
 
         int value
 
-    let resultTable (values: (string * LuaValue) list) =
+    let tableValue values =
         let table = LuaTable()
-        setValue table "ok" (LuaValue true)
         values |> List.iter (fun (key, value) -> setValue table key value)
         LuaValue table
-
-    let errorTable (code: string) (message: string) =
-        let error = LuaTable()
-        setValue error "code" (LuaValue code)
-        setValue error "message" (LuaValue message)
-        let result = LuaTable()
-        setValue result "ok" (LuaValue false)
-        setValue result "error" (LuaValue error)
-        LuaValue result
 
     let hostFunction name operation =
         new LuaFunction(
@@ -127,11 +119,44 @@ module private LuaHostInternals =
                         try
                             return! operation context cancellationToken
                         with
-                        | :? OperationCanceledException -> return raise (OperationCanceledException cancellationToken)
-                        | error -> return context.Return(errorTable "host_error" error.Message)
+                        | :? OperationCanceledException when cancellationToken.IsCancellationRequested ->
+                            return raise (OperationCanceledException cancellationToken)
+                        | :? OperationCanceledException as error ->
+                            return raise (TimeoutException(String.Concat(name, " timed out."), error))
+                        | error ->
+                            return raise (InvalidOperationException(String.Concat(name, ": ", error.Message), error))
                     }
                 ))
         )
+
+    let durationMilliseconds (value: LuaValue) =
+        let validate milliseconds =
+            if not (Double.IsFinite milliseconds) || milliseconds <= 0.0 then
+                invalidArg "duration" "duration must be a positive finite value."
+
+            milliseconds
+
+        match tryRead<double> value with
+        | Some number -> validate number
+        | None ->
+            match tryRead<string> value with
+            | None -> invalidArg "duration" "duration must be a number of milliseconds or a string ending in ms or s."
+            | Some text ->
+                let trimmed = text.Trim()
+
+                let parse (suffix: string) (multiplier: double) =
+                    let numberText = trimmed.Substring(0, trimmed.Length - suffix.Length)
+
+                    match Double.TryParse(numberText, NumberStyles.Float, CultureInfo.InvariantCulture) with
+                    | true, number -> validate (number * multiplier)
+                    | _ -> invalidArg "duration" (String.Concat("Invalid duration: ", text))
+
+                if trimmed.EndsWith("ms", StringComparison.OrdinalIgnoreCase) then
+                    parse "ms" 1.0
+                elif trimmed.EndsWith("s", StringComparison.OrdinalIgnoreCase) then
+                    parse "s" 1000.0
+                else
+                    invalidArg "duration" "duration strings must end in ms or s."
 
     let rec tomlValue value =
         match value with
@@ -209,20 +234,9 @@ module private LuaHostInternals =
 
     let caseContext (plan: CapturePlan) (capture: PlannedCapture) =
         let table = LuaTable()
-        setValue table "matrix_path" (LuaValue plan.MatrixPath)
-        setValue table "adapter_path" (LuaValue plan.AdapterPath)
-        setValue table "output_path" (LuaValue plan.OutputPath)
-        setValue table "definition_id" (LuaValue capture.DefinitionId)
-        setValue table "logical_name" (LuaValue capture.LogicalName)
+        setValue table "script_path" (LuaValue plan.ScriptPath)
+        setValue table "output" (LuaValue capture.OutputPath)
         setValue table "device" (LuaValue(deviceTable capture.Device))
-
-        match capture.Kind with
-        | Still ->
-            setValue table "kind" (LuaValue "still")
-            setValue table "workflow" LuaValue.Nil
-        | Animation workflow ->
-            setValue table "kind" (LuaValue "animation")
-            setValue table "workflow" (LuaValue workflow)
 
         let axes = LuaTable(0, capture.Axes.Length)
 
@@ -239,226 +253,197 @@ module private LuaHostInternals =
         setValue table "data" (LuaValue data)
         table
 
-    let readFunction (table: LuaTable) key =
-        match getValue table key |> tryRead<LuaFunction> with
-        | Some functionValue -> functionValue
-        | None -> invalidOp (String.Concat("Adapter requires function '", key, "'."))
+    let collectAnimationDurations (destination: ResizeArray<TimeSpan>) value =
+        match value with
+        | CdpEvaluationValue.Json json when json.ValueKind = JsonValueKind.Object ->
+            let mutable durations = Unchecked.defaultof<JsonElement>
 
-    let callAsync (state: LuaState) (functionValue: LuaFunction) (argument: LuaTable) cancellationToken =
-        state.CallAsync(LuaValue functionValue, [| LuaValue argument |], cancellationToken).AsTask()
+            if
+                json.TryGetProperty("update_durations_ms", &durations)
+                && durations.ValueKind = JsonValueKind.Array
+            then
+                for duration in durations.EnumerateArray() do
+                    let milliseconds = duration.GetDouble()
+
+                    if Double.IsFinite milliseconds && milliseconds >= 0.0 then
+                        destination.Add(TimeSpan.FromMilliseconds milliseconds)
+        | _ -> ()
 
 module LuaHost =
-    let runAsync toolVersion (plan: CapturePlan) (browser: BrowserExecutable) (cancellationToken: CancellationToken) =
+    let private bootstrap =
+        """
+local duration_ms = viset.__duration_ms
+local now_ms = viset.__now_ms
+local sleep_ms = viset.__sleep_ms
+local create_recording = viset.__recording_create
+local start_recording = viset.__recording_start
+local stop_recording = viset.__recording_stop
+local recording_active = viset.__recording_active
+
+function viset.sleep(duration)
+  sleep_ms(duration_ms(duration))
+end
+
+function viset.record()
+  create_recording()
+  local recording = {}
+
+  function recording:start()
+    start_recording()
+  end
+
+  function recording:stop()
+    stop_recording()
+  end
+
+  function recording:during(duration, callback)
+    if not recording_active() then
+      error("recording:during requires a started recording", 2)
+    end
+
+    if callback ~= nil and type(callback) ~= "function" then
+      error("recording:during callback must be a function", 2)
+    end
+
+    local minimum = duration_ms(duration)
+    local started = now_ms()
+
+    if callback ~= nil then
+      callback()
+    end
+
+    if not recording_active() then
+      error("recording:during callback must not stop the recording", 2)
+    end
+
+    local remaining = minimum - (now_ms() - started)
+    if remaining > 0 then
+      sleep_ms(remaining)
+    end
+  end
+
+  return recording
+end
+
+viset.__duration_ms = nil
+viset.__now_ms = nil
+viset.__sleep_ms = nil
+viset.__recording_create = nil
+viset.__recording_start = nil
+viset.__recording_stop = nil
+viset.__recording_active = nil
+"""
+
+    let runAsync
+        (_toolVersion: string)
+        (plan: CapturePlan)
+        (browser: BrowserExecutable)
+        (cancellationToken: CancellationToken)
+        =
         task {
-            ArgumentException.ThrowIfNullOrWhiteSpace toolVersion
-            Output.validateRoot plan.OutputPath
-            use state = LuaState.Create()
-            state.OpenStandardLibraries()
+            Output.preflight plan
 
-            let adapterDirectory =
-                Path.GetDirectoryName plan.AdapterPath
-                |> Option.ofObj
-                |> Option.defaultValue Environment.CurrentDirectory
+            let browserOptions =
+                BrowserSessionOptions(browser.ExecutablePath, plan.BrowserArguments)
 
-            state.ModuleLoader <- AdapterModuleLoader(adapterDirectory)
+            let outputs = ResizeArray<CaptureOutputResult>()
 
-            let processes = Dictionary<int, ManagedProcess>()
-            let processLock = obj ()
-            let mutable nextProcessHandle = 0
-            let mutable activeCase: ActiveCase option = None
-            use httpClient = new HttpClient(Timeout = Timeout.InfiniteTimeSpan)
+            for planned in plan.Captures do
+                use! session =
+                    CaptureSession.LaunchAsync(browserOptions, planned.Device, plan.FrameSource, cancellationToken)
 
-            let withActiveCase operation =
-                match activeCase with
-                | Some current -> operation current
-                | None -> raise (InvalidOperationException "No capture case is active.")
+                use state = LuaState.Create()
+                state.OpenStandardLibraries()
+                state.ModuleLoader <- CaptureModuleLoader(plan.ScriptDirectory)
+                use httpClient = new HttpClient(Timeout = Timeout.InfiniteTimeSpan)
+                let processes = Dictionary<int, ManagedProcess>()
+                let processLock = obj ()
+                let mutable nextProcessHandle = 0
 
-            let removeProcess handle =
-                lock processLock (fun () ->
-                    match processes.TryGetValue handle with
-                    | true, childProcess ->
-                        processes.Remove handle |> ignore
-                        Some childProcess
-                    | false, _ -> None)
+                let activeCase =
+                    { Planned = planned
+                      Session = session
+                      AnimationUpdateDurations = ResizeArray<TimeSpan>()
+                      Snapshot = None
+                      Recorder = None }
 
-            let findProcess handle =
-                lock processLock (fun () ->
-                    match processes.TryGetValue handle with
-                    | true, childProcess -> Some childProcess
-                    | false, _ -> None)
+                let removeProcess handle =
+                    lock processLock (fun () ->
+                        match processes.TryGetValue handle with
+                        | true, childProcess ->
+                            processes.Remove handle |> ignore
+                            Some childProcess
+                        | false, _ -> None)
 
-            let stopProcessAsync handle cancellationToken =
-                task {
-                    match findProcess handle with
-                    | None -> return LuaHostInternals.errorTable "unknown_process" "The process handle is not active."
-                    | Some managed ->
-                        let childProcess = managed.Process
+                let findProcess handle =
+                    lock processLock (fun () ->
+                        match processes.TryGetValue handle with
+                        | true, childProcess -> Some childProcess
+                        | false, _ -> None)
 
-                        try
-                            if not childProcess.HasExited then
-                                childProcess.Kill true
-
-                            do! childProcess.WaitForExitAsync cancellationToken
-                            let! standardOutput = managed.StandardOutput
-                            let! standardError = managed.StandardError
-                            let exitCode = childProcess.ExitCode
-                            removeProcess handle |> Option.iter (fun value -> value.Process.Dispose())
-
-                            return
-                                LuaHostInternals.resultTable
-                                    [ "exit_code", LuaValue(double exitCode)
-                                      "stdout", LuaValue standardOutput
-                                      "stderr", LuaValue standardError ]
-                        with error ->
-                            return LuaHostInternals.errorTable "process_stop_failed" error.Message
-                }
-
-            let cleanupProcessesAsync () =
-                task {
-                    let handles = lock processLock (fun () -> processes.Keys |> Seq.toArray)
-                    let failures = ResizeArray<string>()
-
-                    for handle in handles do
-                        let! result = stopProcessAsync handle CancellationToken.None
-                        let table = result.Read<LuaTable>()
-
-                        if not (LuaHostInternals.getValue table "ok" |> fun value -> value.Read<bool>()) then
-                            let error =
-                                LuaHostInternals.getValue table "error" |> fun value -> value.Read<LuaTable>()
-
-                            failures.Add(LuaHostInternals.requiredString error "message")
-
-                    return List.ofSeq failures
-                }
-
-            let processStart =
-                LuaHostInternals.hostFunction "viset.process.start" (fun context _ ->
+                let processResultAsync handle (managed: ManagedProcess) =
                     task {
-                        withActiveCase (fun _ -> ())
-                        let options = context.GetArgument<LuaTable>(0)
-                        let startInfo = ProcessStartInfo(LuaHostInternals.requiredString options "file")
-                        startInfo.UseShellExecute <- false
-                        startInfo.CreateNoWindow <- true
-                        startInfo.RedirectStandardOutput <- true
-                        startInfo.RedirectStandardError <- true
-
-                        LuaHostInternals.optionalString options "working_directory"
-                        |> Option.iter (fun directory -> startInfo.WorkingDirectory <- directory)
-
-                        match
-                            LuaHostInternals.getValue options "arguments"
-                            |> LuaHostInternals.tryRead<LuaTable>
-                        with
-                        | Some arguments ->
-                            for index in 1 .. arguments.ArrayLength do
-                                startInfo.ArgumentList.Add(arguments[LuaValue(double index)].Read<string>())
-                        | None -> ()
-
-                        match
-                            LuaHostInternals.getValue options "environment"
-                            |> LuaHostInternals.tryRead<LuaTable>
-                        with
-                        | Some environment ->
-                            for item in environment do
-                                startInfo.Environment[item.Key.Read<string>()] <- item.Value.Read<string>()
-                        | None -> ()
-
-                        let childProcess =
-                            Process.Start startInfo
-                            |> Option.ofObj
-                            |> Option.defaultWith (fun () ->
-                                raise (InvalidOperationException "Process could not be started."))
-
-                        let managed =
-                            ManagedProcess(
-                                childProcess,
-                                childProcess.StandardOutput.ReadToEndAsync(),
-                                childProcess.StandardError.ReadToEndAsync()
-                            )
-
-                        let handle =
-                            lock processLock (fun () ->
-                                nextProcessHandle <- nextProcessHandle + 1
-                                processes.Add(nextProcessHandle, managed)
-                                nextProcessHandle)
+                        let! standardOutput = managed.StandardOutput
+                        let! standardError = managed.StandardError
+                        let exitCode = managed.Process.ExitCode
+                        removeProcess handle |> Option.iter (fun value -> value.Process.Dispose())
 
                         return
-                            context.Return(
-                                LuaHostInternals.resultTable
-                                    [ "handle", LuaValue(double handle)
-                                      "process_id", LuaValue(double childProcess.Id) ]
-                            )
-                    })
+                            LuaHostInternals.tableValue
+                                [ "exit_code", LuaValue(double exitCode)
+                                  "stdout", LuaValue standardOutput
+                                  "stderr", LuaValue standardError ]
+                    }
 
-            let processWait =
-                LuaHostInternals.hostFunction "viset.process.wait" (fun context cancellationToken ->
+                let stopProcessAsync handle cancellationToken =
                     task {
-                        let handle = context.GetArgument<double>(0) |> LuaHostInternals.numberToInt "handle"
+                        let managed =
+                            findProcess handle
+                            |> Option.defaultWith (fun () -> invalidOp "The process handle is not active.")
 
-                        let timeoutMilliseconds =
-                            if context.HasArgument 1 then
-                                context.GetArgument<double>(1)
-                            else
-                                30000.0
+                        if not managed.Process.HasExited then
+                            managed.Process.Kill true
 
-                        if not (Double.IsFinite timeoutMilliseconds) || timeoutMilliseconds <= 0.0 then
-                            invalidArg "timeout_ms" "timeout_ms must be a positive finite number."
+                        do! managed.Process.WaitForExitAsync cancellationToken
+                        return! processResultAsync handle managed
+                    }
 
-                        let managed = lock processLock (fun () -> processes.TryGetValue handle)
+                let cleanupProcessesAsync () =
+                    task {
+                        let handles = lock processLock (fun () -> processes.Keys |> Seq.toArray)
+                        let failures = ResizeArray<string>()
 
-                        match managed with
-                        | false, _ ->
-                            return
-                                context.Return(
-                                    LuaHostInternals.errorTable "unknown_process" "The process handle is not active."
-                                )
-                        | true, childProcess ->
-                            use timeout = CancellationTokenSource.CreateLinkedTokenSource cancellationToken
-                            timeout.CancelAfter(TimeSpan.FromMilliseconds timeoutMilliseconds)
-
+                        for handle in handles do
                             try
-                                do! childProcess.Process.WaitForExitAsync timeout.Token
-                                let! standardOutput = childProcess.StandardOutput
-                                let! standardError = childProcess.StandardError
-                                let exitCode = childProcess.Process.ExitCode
-                                removeProcess handle |> Option.iter (fun value -> value.Process.Dispose())
+                                let! _ = stopProcessAsync handle CancellationToken.None
+                                ()
+                            with error ->
+                                failures.Add(error.Message)
 
-                                return
-                                    context.Return(
-                                        LuaHostInternals.resultTable
-                                            [ "exit_code", LuaValue(double exitCode)
-                                              "stdout", LuaValue standardOutput
-                                              "stderr", LuaValue standardError ]
-                                    )
-                            with :? OperationCanceledException when not cancellationToken.IsCancellationRequested ->
-                                return
-                                    context.Return(
-                                        LuaHostInternals.errorTable
-                                            "process_timeout"
-                                            "The process did not exit before timeout_ms."
-                                    )
-                    })
+                        return List.ofSeq failures
+                    }
 
-            let processStop =
-                LuaHostInternals.hostFunction "viset.process.stop" (fun context cancellationToken ->
+                let responseTable (response: HttpResponseMessage) (body: string) =
+                    let headers = LuaTable()
+
+                    for header in response.Headers do
+                        LuaHostInternals.setValue headers header.Key (LuaValue(String.Join(",", header.Value)))
+
+                    for header in response.Content.Headers do
+                        LuaHostInternals.setValue headers header.Key (LuaValue(String.Join(",", header.Value)))
+
+                    LuaHostInternals.tableValue
+                        [ "status", LuaValue(double (int response.StatusCode))
+                          "headers", LuaValue headers
+                          "body", LuaValue body ]
+
+                let sendGetAsync
+                    (options: LuaTable)
+                    (timeoutMilliseconds: double)
+                    (cancellationToken: CancellationToken)
+                    =
                     task {
-                        let handle = context.GetArgument<double>(0) |> LuaHostInternals.numberToInt "handle"
-                        let! result = stopProcessAsync handle cancellationToken
-                        return context.Return result
-                    })
-
-            let httpGet =
-                LuaHostInternals.hostFunction "viset.http.get" (fun context cancellationToken ->
-                    task {
-                        let options = context.GetArgument<LuaTable>(0)
                         let uri = Uri(LuaHostInternals.requiredString options "url", UriKind.Absolute)
-
-                        let timeoutMilliseconds =
-                            LuaHostInternals.optionalNumber options "timeout_ms" 30000.0
-
-                        if timeoutMilliseconds <= 0.0 then
-                            invalidArg "timeout_ms" "timeout_ms must be positive."
-
                         use request = new HttpRequestMessage(HttpMethod.Get, uri)
 
                         match
@@ -476,319 +461,504 @@ module LuaHost =
 
                         use timeout = CancellationTokenSource.CreateLinkedTokenSource cancellationToken
                         timeout.CancelAfter(TimeSpan.FromMilliseconds timeoutMilliseconds)
+                        use! response = httpClient.SendAsync(request, timeout.Token)
+                        let! body = response.Content.ReadAsStringAsync(timeout.Token)
+                        return response, body
+                    }
 
-                        try
-                            use! response = httpClient.SendAsync(request, timeout.Token)
-                            let! body = response.Content.ReadAsStringAsync(timeout.Token)
-                            let headers = LuaTable()
+                let processStart =
+                    LuaHostInternals.hostFunction "viset.process.start" (fun context _ ->
+                        task {
+                            let options = context.GetArgument<LuaTable>(0)
+                            let startInfo = ProcessStartInfo(LuaHostInternals.requiredString options "file")
+                            startInfo.UseShellExecute <- false
+                            startInfo.CreateNoWindow <- true
+                            startInfo.RedirectStandardOutput <- true
+                            startInfo.RedirectStandardError <- true
 
-                            for header in response.Headers do
-                                LuaHostInternals.setValue headers header.Key (LuaValue(String.Join(",", header.Value)))
+                            LuaHostInternals.optionalString options "working_directory"
+                            |> Option.iter (fun directory -> startInfo.WorkingDirectory <- directory)
 
-                            for header in response.Content.Headers do
-                                LuaHostInternals.setValue headers header.Key (LuaValue(String.Join(",", header.Value)))
+                            match
+                                LuaHostInternals.getValue options "arguments"
+                                |> LuaHostInternals.tryRead<LuaTable>
+                            with
+                            | Some arguments ->
+                                for index in 1 .. arguments.ArrayLength do
+                                    startInfo.ArgumentList.Add(arguments[LuaValue(double index)].Read<string>())
+                            | None -> ()
 
-                            return
-                                context.Return(
-                                    LuaHostInternals.resultTable
-                                        [ "status", LuaValue(double (int response.StatusCode))
-                                          "headers", LuaValue headers
-                                          "body", LuaValue body ]
+                            match
+                                LuaHostInternals.getValue options "environment"
+                                |> LuaHostInternals.tryRead<LuaTable>
+                            with
+                            | Some environment ->
+                                for item in environment do
+                                    startInfo.Environment[item.Key.Read<string>()] <- item.Value.Read<string>()
+                            | None -> ()
+
+                            let childProcess =
+                                Process.Start startInfo
+                                |> Option.ofObj
+                                |> Option.defaultWith (fun () -> invalidOp "Process could not be started.")
+
+                            let managed =
+                                ManagedProcess(
+                                    childProcess,
+                                    childProcess.StandardOutput.ReadToEndAsync(),
+                                    childProcess.StandardError.ReadToEndAsync()
                                 )
-                        with :? OperationCanceledException when not cancellationToken.IsCancellationRequested ->
-                            return
-                                context.Return(
-                                    LuaHostInternals.errorTable "http_timeout" "The HTTP request exceeded timeout_ms."
-                                )
-                    })
 
-            let pageNavigate =
-                LuaHostInternals.hostFunction "viset.page.navigate" (fun context cancellationToken ->
-                    task {
-                        let uri = Uri(context.GetArgument<string>(0), UriKind.Absolute)
-                        do! withActiveCase (fun current -> current.Session.Page.NavigateAsync(uri, cancellationToken))
-                        return context.Return(LuaHostInternals.resultTable [])
-                    })
+                            let handle =
+                                lock processLock (fun () ->
+                                    nextProcessHandle <- nextProcessHandle + 1
+                                    processes.Add(nextProcessHandle, managed)
+                                    nextProcessHandle)
 
-            let pageEvaluate =
-                LuaHostInternals.hostFunction "viset.page.evaluate" (fun context cancellationToken ->
-                    task {
-                        let script = context.GetArgument<string>(0)
+                            return context.Return(LuaValue(double handle))
+                        })
 
-                        let! result =
-                            withActiveCase (fun current ->
-                                current.Session.Page.EvaluateAsync(script, cancellationToken))
+                let processWait =
+                    LuaHostInternals.hostFunction "viset.process.wait" (fun context cancellationToken ->
+                        task {
+                            let handle = context.GetArgument<double>(0) |> LuaHostInternals.numberToInt "handle"
 
-                        match result with
-                        | Ok value ->
-                            return
-                                context.Return(
-                                    LuaHostInternals.resultTable [ "value", LuaHostInternals.evaluationValue value ]
-                                )
-                        | Error error ->
-                            return context.Return(LuaHostInternals.errorTable "javascript_error" (error.ToString()))
-                    })
+                            let timeoutMilliseconds =
+                                if context.HasArgument 1 then
+                                    LuaHostInternals.durationMilliseconds (context.GetArgument(1))
+                                else
+                                    30000.0
 
-            let pageWaitFor =
-                LuaHostInternals.hostFunction "viset.page.wait_for" (fun context cancellationToken ->
-                    task {
-                        let script = context.GetArgument<string>(0)
-                        let timeoutMilliseconds = context.GetArgument<double>(1)
+                            let managed =
+                                findProcess handle
+                                |> Option.defaultWith (fun () -> invalidOp "The process handle is not active.")
 
-                        if not (Double.IsFinite timeoutMilliseconds) || timeoutMilliseconds <= 0.0 then
-                            invalidArg "timeout_ms" "timeout_ms must be a positive finite number."
+                            use timeout = CancellationTokenSource.CreateLinkedTokenSource cancellationToken
+                            timeout.CancelAfter(TimeSpan.FromMilliseconds timeoutMilliseconds)
+                            do! managed.Process.WaitForExitAsync timeout.Token
+                            let! result = processResultAsync handle managed
+                            return context.Return result
+                        })
 
-                        use timeout = CancellationTokenSource.CreateLinkedTokenSource cancellationToken
-                        timeout.CancelAfter(TimeSpan.FromMilliseconds timeoutMilliseconds)
-                        let mutable ready = false
-                        let mutable evaluationError = None
+                let processStop =
+                    LuaHostInternals.hostFunction "viset.process.stop" (fun context cancellationToken ->
+                        task {
+                            let handle = context.GetArgument<double>(0) |> LuaHostInternals.numberToInt "handle"
+                            let! result = stopProcessAsync handle cancellationToken
+                            return context.Return result
+                        })
 
-                        try
-                            while not ready && evaluationError.IsNone do
-                                let! result =
-                                    withActiveCase (fun current ->
-                                        current.Session.Page.EvaluateAsync(script, timeout.Token))
+                let httpGet =
+                    LuaHostInternals.hostFunction "viset.http.get" (fun context cancellationToken ->
+                        task {
+                            let options = context.GetArgument<LuaTable>(0)
+
+                            let timeoutMilliseconds =
+                                match LuaHostInternals.getValue options "timeout" with
+                                | value when value.Type = LuaValueType.Nil -> 30000.0
+                                | value -> LuaHostInternals.durationMilliseconds value
+
+                            let! response, body = sendGetAsync options timeoutMilliseconds cancellationToken
+                            use response = response
+                            return context.Return(responseTable response body)
+                        })
+
+                let httpWait =
+                    LuaHostInternals.hostFunction "viset.http.wait" (fun context cancellationToken ->
+                        task {
+                            let options = context.GetArgument<LuaTable>(0)
+
+                            let timeoutMilliseconds =
+                                match LuaHostInternals.getValue options "timeout" with
+                                | value when value.Type = LuaValueType.Nil -> 30000.0
+                                | value -> LuaHostInternals.durationMilliseconds value
+
+                            let stopwatch = Stopwatch.StartNew()
+                            let mutable completed = None
+
+                            while completed.IsNone && stopwatch.Elapsed.TotalMilliseconds < timeoutMilliseconds do
+                                let remaining = timeoutMilliseconds - stopwatch.Elapsed.TotalMilliseconds
+                                let requestTimeout = max 1.0 (min 500.0 remaining)
+
+                                try
+                                    let! response, body = sendGetAsync options requestTimeout cancellationToken
+                                    use response = response
+
+                                    if int response.StatusCode >= 200 && int response.StatusCode <= 299 then
+                                        completed <- Some(responseTable response body)
+                                with
+                                | :? HttpRequestException -> ()
+                                | :? OperationCanceledException when not cancellationToken.IsCancellationRequested ->
+                                    ()
+
+                                if completed.IsNone then
+                                    do! Task.Delay(50, cancellationToken)
+
+                            match completed with
+                            | Some value -> return context.Return value
+                            | None ->
+                                return
+                                    raise (
+                                        TimeoutException
+                                            "The HTTP endpoint did not return a 2xx response before timeout."
+                                    )
+                        })
+
+                let pageNavigate =
+                    LuaHostInternals.hostFunction "viset.page.navigate" (fun context cancellationToken ->
+                        task {
+                            let uri = Uri(context.GetArgument<string>(0), UriKind.Absolute)
+                            do! activeCase.Session.Page.NavigateAsync(uri, cancellationToken)
+                            return context.Return()
+                        })
+
+                let pageEvaluate =
+                    LuaHostInternals.hostFunction "viset.page.evaluate" (fun context cancellationToken ->
+                        task {
+                            let script = context.GetArgument<string>(0)
+                            let! result = activeCase.Session.Page.EvaluateAsync(script, cancellationToken)
+
+                            match result with
+                            | Ok value -> return context.Return(LuaHostInternals.evaluationValue value)
+                            | Error error -> return raise (InvalidOperationException(error.ToString()))
+                        })
+
+                let pageWaitFor =
+                    LuaHostInternals.hostFunction "viset.page.wait_for" (fun context cancellationToken ->
+                        task {
+                            let script = context.GetArgument<string>(0)
+
+                            let timeoutMilliseconds =
+                                LuaHostInternals.durationMilliseconds (context.GetArgument(1))
+
+                            use timeout = CancellationTokenSource.CreateLinkedTokenSource cancellationToken
+                            timeout.CancelAfter(TimeSpan.FromMilliseconds timeoutMilliseconds)
+                            let mutable ready = false
+
+                            while not ready do
+                                let! result = activeCase.Session.Page.EvaluateAsync(script, timeout.Token)
 
                                 match result with
                                 | Ok(CdpEvaluationValue.Boolean value) -> ready <- value
                                 | Ok _ -> ready <- false
-                                | Error error -> evaluationError <- Some(error.ToString())
+                                | Error error -> raise (InvalidOperationException(error.ToString()))
 
-                                if not ready && evaluationError.IsNone then
+                                if not ready then
                                     do! Task.Delay(20, timeout.Token)
 
-                            match evaluationError with
-                            | Some message ->
-                                return context.Return(LuaHostInternals.errorTable "javascript_error" message)
-                            | None -> return context.Return(LuaHostInternals.resultTable [])
-                        with :? OperationCanceledException when not cancellationToken.IsCancellationRequested ->
-                            return
-                                context.Return(
-                                    LuaHostInternals.errorTable
-                                        "wait_timeout"
-                                        "The expression did not become true before timeout_ms."
+                            return context.Return()
+                        })
+
+                let pageAnimate =
+                    LuaHostInternals.hostFunction "viset.page.animate" (fun context cancellationToken ->
+                        task {
+                            let options = context.GetArgument<LuaTable>(0)
+
+                            let duration =
+                                LuaHostInternals.getValue options "duration"
+                                |> LuaHostInternals.durationMilliseconds
+
+                            let update = LuaHostInternals.requiredString options "update"
+
+                            let easing =
+                                LuaHostInternals.optionalString options "easing" |> Option.defaultValue "linear"
+
+                            let easingExpression =
+                                match easing with
+                                | "linear" -> "progress => progress"
+                                | "in_sine" -> "progress => 1 - Math.cos((progress * Math.PI) / 2)"
+                                | "out_sine" -> "progress => Math.sin((progress * Math.PI) / 2)"
+                                | "in_out_sine" -> "progress => -(Math.cos(Math.PI * progress) - 1) / 2"
+                                | custom -> custom
+
+                            let script =
+                                String.Concat(
+                                    "(async () => {",
+                                    "const durationMs=",
+                                    duration.ToString("R", CultureInfo.InvariantCulture),
+                                    ";const update=(",
+                                    update,
+                                    ");const easing=(",
+                                    easingExpression,
+                                    ");",
+                                    "if(typeof update!=='function')throw new TypeError('update must evaluate to a function');",
+                                    "if(typeof easing!=='function')throw new TypeError('easing must evaluate to a function');",
+                                    "const updateDurations=[];const started=performance.now();",
+                                    "return await new Promise((resolve,reject)=>{",
+                                    "const tick=now=>{try{const linear=Math.min(1,Math.max(0,(now-started)/durationMs));",
+                                    "const progress=easing(linear);if(!Number.isFinite(progress))throw new TypeError('easing returned a non-finite value');",
+                                    "const before=performance.now();const result=update(Object.freeze({progress,linear_progress:linear,elapsed_ms:Math.min(now-started,durationMs),duration_ms:durationMs}));",
+                                    "if(result&&typeof result.then==='function')throw new TypeError('update must be synchronous');",
+                                    "updateDurations.push(performance.now()-before);",
+                                    "if(linear>=1){resolve({update_durations_ms:updateDurations});}else{requestAnimationFrame(tick);}",
+                                    "}catch(error){reject(error);}};requestAnimationFrame(tick);});})()"
                                 )
-                    })
 
-            let emulationApply =
-                LuaHostInternals.hostFunction "viset.emulation.apply" (fun context cancellationToken ->
-                    task {
-                        let device = context.GetArgument<LuaTable>(0)
+                            let! result = activeCase.Session.Page.EvaluateAsync(script, cancellationToken)
 
-                        let viewport =
-                            LuaHostInternals.getValue device "viewport"
-                            |> fun value -> value.Read<LuaTable>()
+                            match result with
+                            | Error error -> return raise (InvalidOperationException(error.ToString()))
+                            | Ok value ->
+                                LuaHostInternals.collectAnimationDurations activeCase.AnimationUpdateDurations value
+                                return context.Return()
+                        })
 
-                        let width =
-                            LuaHostInternals.getValue viewport "width"
-                            |> fun value -> value.Read<double>() |> LuaHostInternals.numberToInt "width"
+                let emulationApply =
+                    LuaHostInternals.hostFunction "viset.emulation.apply" (fun context cancellationToken ->
+                        task {
+                            let device = context.GetArgument<LuaTable>(0)
 
-                        let height =
-                            LuaHostInternals.getValue viewport "height"
-                            |> fun value -> value.Read<double>() |> LuaHostInternals.numberToInt "height"
+                            let viewport =
+                                LuaHostInternals.getValue device "viewport"
+                                |> fun value -> value.Read<LuaTable>()
 
-                        let scale = LuaHostInternals.optionalNumber device "device_scale" 1.0
+                            let width =
+                                LuaHostInternals.getValue viewport "width"
+                                |> fun value -> value.Read<double>()
+                                |> LuaHostInternals.numberToInt "width"
 
-                        let mobile =
-                            LuaHostInternals.getValue device "mobile"
-                            |> fun value ->
-                                if value.Type = LuaValueType.Nil then
-                                    false
-                                else
-                                    value.Read<bool>()
+                            let height =
+                                LuaHostInternals.getValue viewport "height"
+                                |> fun value -> value.Read<double>()
+                                |> LuaHostInternals.numberToInt "height"
 
-                        let touch =
-                            LuaHostInternals.getValue device "touch"
-                            |> fun value ->
-                                if value.Type = LuaValueType.Nil then
-                                    false
-                                else
-                                    value.Read<bool>()
+                            let scale = LuaHostInternals.optionalNumber device "device_scale" 1.0
 
-                        do!
-                            withActiveCase (fun current ->
-                                current.Session.Page.ConfigureEmulationAsync(
+                            let mobile =
+                                match LuaHostInternals.getValue device "mobile" with
+                                | value when value.Type = LuaValueType.Nil -> false
+                                | value -> value.Read<bool>()
+
+                            let touch =
+                                match LuaHostInternals.getValue device "touch" with
+                                | value when value.Type = LuaValueType.Nil -> false
+                                | value -> value.Read<bool>()
+
+                            do!
+                                activeCase.Session.Page.ConfigureEmulationAsync(
                                     width,
                                     height,
                                     scale,
                                     mobile,
                                     touch,
                                     cancellationToken
-                                ))
+                                )
 
-                        return context.Return(LuaHostInternals.resultTable [])
-                    })
-
-            let emulationTouch =
-                LuaHostInternals.hostFunction "viset.emulation.touch" (fun context cancellationToken ->
-                    task {
-                        let x = context.GetArgument<double>(0)
-                        let y = context.GetArgument<double>(1)
-                        do! withActiveCase (fun current -> current.Session.Page.TouchAsync(x, y, cancellationToken))
-                        return context.Return(LuaHostInternals.resultTable [])
-                    })
-
-            let capture kindName expectedKind =
-                LuaHostInternals.hostFunction
-                    (String.Concat("viset.capture.", kindName))
-                    (fun context cancellationToken ->
-                        task {
-                            let! index =
-                                withActiveCase (fun current ->
-                                    task {
-                                        let validKind =
-                                            match expectedKind, current.Planned.Kind with
-                                            | "still", Still -> true
-                                            | "frame", Animation _ -> true
-                                            | _ -> false
-
-                                        if not validKind then
-                                            invalidOp (
-                                                String.Concat(
-                                                    "viset.capture.",
-                                                    kindName,
-                                                    " is not valid for this definition."
-                                                )
-                                            )
-
-                                        if expectedKind = "still" && current.Captures.Count > 0 then
-                                            invalidOp "A still definition may capture exactly one still."
-
-                                        let! bytes = current.Session.CapturePngAsync cancellationToken
-                                        current.Captures.Add bytes
-                                        return current.Captures.Count
-                                    })
-
-                            return context.Return(LuaHostInternals.resultTable [ "capture", LuaValue(double index) ])
+                            return context.Return()
                         })
 
-            let processTable = LuaTable()
-            LuaHostInternals.setValue processTable "start" (LuaValue processStart)
-            LuaHostInternals.setValue processTable "wait" (LuaValue processWait)
-            LuaHostInternals.setValue processTable "stop" (LuaValue processStop)
+                let emulationTouch =
+                    LuaHostInternals.hostFunction "viset.emulation.touch" (fun context cancellationToken ->
+                        task {
+                            let x = context.GetArgument<double>(0)
+                            let y = context.GetArgument<double>(1)
+                            do! activeCase.Session.Page.TouchAsync(x, y, cancellationToken)
+                            return context.Return()
+                        })
 
-            let httpTable = LuaTable()
-            LuaHostInternals.setValue httpTable "get" (LuaValue httpGet)
+                let snapshot =
+                    LuaHostInternals.hostFunction "viset.snapshot" (fun context cancellationToken ->
+                        task {
+                            match planned.Format with
+                            | WebP -> invalidOp "viset.snapshot is valid only for .png output."
+                            | Png -> ()
 
-            let pageTable = LuaTable()
-            LuaHostInternals.setValue pageTable "navigate" (LuaValue pageNavigate)
-            LuaHostInternals.setValue pageTable "evaluate" (LuaValue pageEvaluate)
-            LuaHostInternals.setValue pageTable "wait_for" (LuaValue pageWaitFor)
+                            if activeCase.Snapshot.IsSome then
+                                invalidOp "A .png capture must call viset.snapshot exactly once."
 
-            let emulationTable = LuaTable()
-            LuaHostInternals.setValue emulationTable "apply" (LuaValue emulationApply)
-            LuaHostInternals.setValue emulationTable "touch" (LuaValue emulationTouch)
+                            let! bytes = activeCase.Session.CapturePngAsync cancellationToken
+                            activeCase.Snapshot <- Some bytes
+                            return context.Return()
+                        })
 
-            let captureTable = LuaTable()
-            LuaHostInternals.setValue captureTable "still" (LuaValue(capture "still" "still"))
-            LuaHostInternals.setValue captureTable "frame" (LuaValue(capture "frame" "frame"))
+                let duration =
+                    LuaHostInternals.hostFunction "viset.__duration_ms" (fun context _ ->
+                        task {
+                            let milliseconds = LuaHostInternals.durationMilliseconds (context.GetArgument(0))
+                            return context.Return(LuaValue milliseconds)
+                        })
 
-            let visetTable = LuaTable()
-            LuaHostInternals.setValue visetTable "api_version" (LuaValue 1.0)
-            LuaHostInternals.setValue visetTable "process" (LuaValue processTable)
-            LuaHostInternals.setValue visetTable "http" (LuaValue httpTable)
-            LuaHostInternals.setValue visetTable "page" (LuaValue pageTable)
-            LuaHostInternals.setValue visetTable "emulation" (LuaValue emulationTable)
-            LuaHostInternals.setValue visetTable "capture" (LuaValue captureTable)
-            state.Environment[LuaValue "viset"] <- LuaValue visetTable
+                let now =
+                    LuaHostInternals.hostFunction "viset.__now_ms" (fun context _ ->
+                        task {
+                            let milliseconds =
+                                double (Stopwatch.GetTimestamp()) * 1000.0 / double Stopwatch.Frequency
 
-            let! adapterResults = state.DoFileAsync(plan.AdapterPath, cancellationToken).AsTask()
+                            return context.Return(LuaValue milliseconds)
+                        })
 
-            if adapterResults.Length <> 1 then
-                invalidOp "Adapter must return exactly one table."
+                let sleep =
+                    LuaHostInternals.hostFunction "viset.__sleep_ms" (fun context cancellationToken ->
+                        task {
+                            let milliseconds = context.GetArgument<double>(0)
 
-            let adapter = adapterResults[0].Read<LuaTable>()
-            let prepare = LuaHostInternals.readFunction adapter "prepare"
-            let start = LuaHostInternals.readFunction adapter "start"
-            let ready = LuaHostInternals.readFunction adapter "ready"
-            let openCase = LuaHostInternals.readFunction adapter "open"
-            let stop = LuaHostInternals.readFunction adapter "stop"
+                            if not (Double.IsFinite milliseconds) || milliseconds <= 0.0 then
+                                invalidArg "duration" "sleep duration must be a positive finite number."
 
-            let workflows =
-                match
-                    LuaHostInternals.getValue adapter "workflows"
-                    |> LuaHostInternals.tryRead<LuaTable>
-                with
-                | Some table -> table
-                | None -> LuaTable()
+                            do! Task.Delay(TimeSpan.FromMilliseconds milliseconds, cancellationToken)
+                            return context.Return()
+                        })
 
-            let browserOptions =
-                BrowserSessionOptions(browser.ExecutablePath, plan.BrowserArguments)
+                let recordingCreate =
+                    LuaHostInternals.hostFunction "viset.__recording_create" (fun context _ ->
+                        task {
+                            match planned.Format with
+                            | Png -> invalidOp "viset.record is valid only for .webp output."
+                            | WebP -> ()
 
-            let outputs = ResizeArray<CapturedFile>()
+                            if activeCase.Recorder.IsSome then
+                                invalidOp "A .webp capture may create exactly one recording."
 
-            for planned in plan.Captures do
-                let! session =
-                    CaptureSession.LaunchAsync(browserOptions, planned.Device, plan.FramePath, cancellationToken)
+                            activeCase.Recorder <-
+                                Some(
+                                    RecordingController.CreateScreencast(
+                                        activeCase.Session,
+                                        plan.FramesPerSecond,
+                                        cancellationToken
+                                    )
+                                )
 
-                let current =
-                    { Planned = planned
-                      Session = session
-                      Captures = ResizeArray<byte array>() }
+                            return context.Return()
+                        })
 
-                activeCase <- Some current
-                let context = LuaHostInternals.caseContext plan planned
-                let mutable started = false
+                let recordingStart =
+                    LuaHostInternals.hostFunction "recording:start" (fun context _ ->
+                        task {
+                            let recorder =
+                                activeCase.Recorder
+                                |> Option.defaultWith (fun () -> invalidOp "viset.record must be called first.")
+
+                            do! recorder.StartAsync()
+                            return context.Return()
+                        })
+
+                let recordingStop =
+                    LuaHostInternals.hostFunction "recording:stop" (fun context _ ->
+                        task {
+                            let recorder =
+                                activeCase.Recorder
+                                |> Option.defaultWith (fun () -> invalidOp "viset.record must be called first.")
+
+                            do! recorder.StopAsync()
+                            return context.Return()
+                        })
+
+                let recordingActive =
+                    LuaHostInternals.hostFunction "recording:active" (fun context _ ->
+                        task {
+                            let isActive =
+                                activeCase.Recorder |> Option.exists (fun recorder -> recorder.IsActive)
+
+                            return context.Return(LuaValue isActive)
+                        })
+
+                let processTable = LuaTable()
+                LuaHostInternals.setValue processTable "start" (LuaValue processStart)
+                LuaHostInternals.setValue processTable "wait" (LuaValue processWait)
+                LuaHostInternals.setValue processTable "stop" (LuaValue processStop)
+
+                let httpTable = LuaTable()
+                LuaHostInternals.setValue httpTable "get" (LuaValue httpGet)
+                LuaHostInternals.setValue httpTable "wait" (LuaValue httpWait)
+
+                let pageTable = LuaTable()
+                LuaHostInternals.setValue pageTable "navigate" (LuaValue pageNavigate)
+                LuaHostInternals.setValue pageTable "evaluate" (LuaValue pageEvaluate)
+                LuaHostInternals.setValue pageTable "wait_for" (LuaValue pageWaitFor)
+                LuaHostInternals.setValue pageTable "animate" (LuaValue pageAnimate)
+
+                let emulationTable = LuaTable()
+                LuaHostInternals.setValue emulationTable "apply" (LuaValue emulationApply)
+                LuaHostInternals.setValue emulationTable "touch" (LuaValue emulationTouch)
+
+                let scriptTable = LuaTable()
+                LuaHostInternals.setValue scriptTable "directory" (LuaValue plan.ScriptDirectory)
+
+                let visetTable = LuaTable()
+                LuaHostInternals.setValue visetTable "api_version" (LuaValue 1.0)
+                LuaHostInternals.setValue visetTable "context" (LuaValue(LuaHostInternals.caseContext plan planned))
+                LuaHostInternals.setValue visetTable "script" (LuaValue scriptTable)
+                LuaHostInternals.setValue visetTable "process" (LuaValue processTable)
+                LuaHostInternals.setValue visetTable "http" (LuaValue httpTable)
+                LuaHostInternals.setValue visetTable "page" (LuaValue pageTable)
+                LuaHostInternals.setValue visetTable "emulation" (LuaValue emulationTable)
+                LuaHostInternals.setValue visetTable "snapshot" (LuaValue snapshot)
+                LuaHostInternals.setValue visetTable "__duration_ms" (LuaValue duration)
+                LuaHostInternals.setValue visetTable "__now_ms" (LuaValue now)
+                LuaHostInternals.setValue visetTable "__sleep_ms" (LuaValue sleep)
+                LuaHostInternals.setValue visetTable "__recording_create" (LuaValue recordingCreate)
+                LuaHostInternals.setValue visetTable "__recording_start" (LuaValue recordingStart)
+                LuaHostInternals.setValue visetTable "__recording_stop" (LuaValue recordingStop)
+                LuaHostInternals.setValue visetTable "__recording_active" (LuaValue recordingActive)
+                state.Environment[LuaValue "viset"] <- LuaValue visetTable
+
                 let mutable primaryError: exn option = None
                 let cleanupFailures = ResizeArray<string>()
+                let mutable captured: CapturedFile option = None
+                let mutable performance: CapturePerformanceMetrics option = None
 
                 try
                     try
-                        let! _ = LuaHostInternals.callAsync state prepare context cancellationToken
-                        let! _ = LuaHostInternals.callAsync state start context cancellationToken
-                        started <- true
-                        let! _ = LuaHostInternals.callAsync state ready context cancellationToken
-                        let! _ = LuaHostInternals.callAsync state openCase context cancellationToken
+                        let! _ = state.DoStringAsync(bootstrap, cancellationToken = cancellationToken).AsTask()
+                        let! _ = state.DoFileAsync(plan.ScriptPath, cancellationToken).AsTask()
 
-                        match planned.Kind with
-                        | Still -> ()
-                        | Animation workflow ->
-                            let workflowFunction = LuaHostInternals.readFunction workflows workflow
-                            let! _ = LuaHostInternals.callAsync state workflowFunction context cancellationToken
-                            ()
+                        match planned.Format with
+                        | Png ->
+                            let bytes =
+                                activeCase.Snapshot
+                                |> Option.defaultWith (fun () ->
+                                    invalidOp "A .png capture must call viset.snapshot exactly once.")
 
-                        match planned.Kind with
-                        | Still when current.Captures.Count = 1 ->
-                            outputs.Add(
-                                { Capture = planned
-                                  Bytes = current.Captures[0]
-                                  FrameTicksMs = [] }
-                            )
-                        | Still -> invalidOp "A still definition must call viset.capture.still() exactly once."
-                        | Animation _ when current.Captures.Count >= 2 ->
-                            let encoded =
-                                Media.encodeAnimatedWebP plan.FramesPerSecond (List.ofSeq current.Captures)
+                            captured <-
+                                Some
+                                    { Capture = planned
+                                      Bytes = bytes
+                                      FrameTicksMs = [] }
+                        | WebP ->
+                            let recorder =
+                                activeCase.Recorder
+                                |> Option.defaultWith (fun () ->
+                                    invalidOp "A .webp capture must call viset.record exactly once.")
 
-                            outputs.Add(
-                                { Capture = planned
-                                  Bytes = encoded.Bytes
-                                  FrameTicksMs = encoded.FrameTicksMs }
-                            )
-                        | Animation _ ->
-                            invalidOp "An animation workflow must call viset.capture.frame() at least twice."
+                            let! animation = recorder.FinalizeAsync cancellationToken
+                            performance <- Some animation.Metrics
+
+                            captured <-
+                                Some
+                                    { Capture = planned
+                                      Bytes = animation.Encoded.Bytes
+                                      FrameTicksMs = animation.Encoded.FrameTicksMs }
                     with error ->
                         primaryError <- Some error
 
-                    if started then
+                    match activeCase.Recorder with
+                    | Some recorder when recorder.IsActive ->
                         try
-                            let! _ = LuaHostInternals.callAsync state stop context CancellationToken.None
-                            ()
+                            do! recorder.StopAsync()
                         with error ->
-                            cleanupFailures.Add(String.Concat("Adapter stop failed: ", error.Message))
+                            cleanupFailures.Add(String.Concat("Recording cleanup failed: ", error.Message))
+                    | _ -> ()
 
                     let! processFailures = cleanupProcessesAsync ()
                     processFailures |> List.iter cleanupFailures.Add
+
+                    activeCase.Recorder
+                    |> Option.iter (fun recorder ->
+                        try
+                            (recorder :> IDisposable).Dispose()
+                        with error ->
+                            cleanupFailures.Add(String.Concat("Recording spool cleanup failed: ", error.Message)))
 
                     try
                         do! (session :> IAsyncDisposable).DisposeAsync().AsTask()
                     with error ->
                         cleanupFailures.Add(error.Message)
-                finally
-                    activeCase <- None
+                with error ->
+                    primaryError <- primaryError |> Option.orElse (Some error)
 
                 match primaryError, List.ofSeq cleanupFailures with
-                | None, [] -> ()
                 | Some error, [] -> raise error
+                | None, [] -> ()
                 | None, failures -> raise (InvalidOperationException(String.Join(" ", failures)))
                 | Some error, failures ->
                     raise (
@@ -798,11 +968,19 @@ module LuaHost =
                         )
                     )
 
-            return
-                Output.write
-                    toolVersion
-                    { Version = browser.Version
-                      Source = browser.Origin.ToString() }
-                    plan
-                    (List.ofSeq outputs)
+                let completed =
+                    captured
+                    |> Option.defaultWith (fun () -> invalidOp "Capture completed without output bytes.")
+
+                let writtenPath = Output.write plan.Force completed
+
+                outputs.Add(
+                    { Path = writtenPath
+                      Format = planned.Format
+                      FrameTicksMs = completed.FrameTicksMs
+                      Performance = performance
+                      AnimationUpdateDurations = List.ofSeq activeCase.AnimationUpdateDurations }
+                )
+
+            return { Outputs = List.ofSeq outputs }
         }

@@ -19,7 +19,11 @@
     in
     {
       devShells.${system}.default = pkgs.mkShellNoCC {
-        packages = [ dotnetPkgs.dotnet-sdk_10 ];
+        packages = [
+          dotnetPkgs.dotnet-sdk_10
+          pkgs.nixfmt
+          pkgs.python3
+        ];
       };
     };
 }

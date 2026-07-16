@@ -5,6 +5,7 @@
     <CentralPackageVersionOverrideEnabled>false</CentralPackageVersionOverrideEnabled>
   </PropertyGroup>
   <ItemGroup>
+    <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
     <PackageVersion Include="FSharp.Core" Version="10.1.301" />
     <PackageVersion Include="LuaCSharp" Version="0.5.5" />
     <PackageVersion Include="Magick.NET-Q8-AnyCPU" Version="14.15.0" />

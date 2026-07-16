@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Minimal Viset example</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+      }
+
+      body {
+        display: grid;
+        place-items: center;
+        background: linear-gradient(145deg, #111827, #243454);
+        color: #f8fafc;
+        font-family: system-ui, sans-serif;
+      }
+
+      main {
+        width: min(680px, calc(100% - 64px));
+        padding: 48px;
+        border: 1px solid rgb(255 255 255 / 16%);
+        border-radius: 28px;
+        background: rgb(15 23 42 / 72%);
+        box-shadow: 0 32px 80px rgb(0 0 0 / 35%);
+      }
+
+      p {
+        color: #a9b7d0;
+        font-size: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p>Minimal project</p>
+      <h1>Viset is capturing this page.</h1>
+    </main>
+    <script>
+      window.minimalExampleReady = true;
+    </script>
+  </body>
+</html>

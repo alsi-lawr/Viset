@@ -17,7 +17,10 @@ namespace Viset.Serialization;
 [JsonSerializable(typeof(CdpDispatchTouchEventParameters))]
 [JsonSerializable(typeof(CdpBackgroundParameters))]
 [JsonSerializable(typeof(CdpScreenshotParameters))]
+[JsonSerializable(typeof(CdpScreencastParameters))]
+[JsonSerializable(typeof(CdpScreencastFrameAckParameters))]
 [JsonSerializable(typeof(CdpNavigateResultModel))]
 [JsonSerializable(typeof(CdpEvaluateResultModel))]
 [JsonSerializable(typeof(CdpScreenshotResultModel))]
+[JsonSerializable(typeof(CdpScreencastFrameModel))]
 internal partial class CdpJsonContext : JsonSerializerContext;

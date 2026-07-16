@@ -45,69 +45,129 @@ type Device =
 
     override device.ToString() = device.Name
 
-[<DebuggerDisplay("CaptureKind")>]
-type CaptureKind =
-    | Still
-    | Animation of workflow: string
+[<DebuggerDisplay("BuiltInFrameStyle")>]
+type BuiltInFrameStyle =
+    | Automatic
+    | Phone
+    | Laptop
 
-    override kind.ToString() =
-        match kind with
-        | Still -> "still"
-        | Animation workflow -> workflow
+    override style.ToString() =
+        match style with
+        | Automatic -> "auto"
+        | Phone -> "phone"
+        | Laptop -> "laptop"
 
-type MatrixDefinition =
-    { Id: string
-      NameTemplate: string
-      Kind: CaptureKind
-      Axes: (string * TomlValue list) list
-      Data: (string * TomlValue) list }
+[<DebuggerDisplay("FrameSource")>]
+type FrameSource =
+    | CustomFrame of path: string
+    | BuiltInFrame of style: BuiltInFrameStyle
 
-    override definition.ToString() = definition.Id
+    override source.ToString() =
+        match source with
+        | CustomFrame path -> path
+        | BuiltInFrame style -> String.Concat("builtin:", style.ToString())
+
+[<DebuggerDisplay("CaptureFormat")>]
+type CaptureFormat =
+    | Png
+    | WebP
+
+    override format.ToString() =
+        match format with
+        | Png -> "png"
+        | WebP -> "webp"
+
+[<DebuggerDisplay("RecordingBackend")>]
+type RecordingBackend =
+    | CdpScreencast
+
+    override _.ToString() = "screencast"
 
 type CaptureRequest =
-    { MatrixPath: string
+    { ScriptPath: string
       OutputPath: string option
-      OnlyDefinitionId: string option
-      BrowserPath: string option }
+      BrowserPath: string option
+      Force: bool }
 
-    override request.ToString() = request.MatrixPath
+    override request.ToString() = request.ScriptPath
+
+type InitRequest =
+    { TargetDirectory: string
+      Interactive: bool
+      Force: bool }
+
+    override request.ToString() = request.TargetDirectory
 
 [<DebuggerDisplay("Command")>]
 type Command =
     | Capture of CaptureRequest
+    | Init of InitRequest
     | BrowserInstall
     | Help
     | Version
 
     override command.ToString() =
         match command with
-        | Capture request -> request.MatrixPath
+        | Capture request -> request.ScriptPath
+        | Init request -> request.TargetDirectory
         | BrowserInstall -> "browser install"
         | Help -> "--help"
         | Version -> "--version"
 
 type PlannedCapture =
-    { DefinitionId: string
-      Kind: CaptureKind
-      LogicalName: string
+    { Format: CaptureFormat
       OutputRelativePath: string
+      OutputPath: string
       Device: Device
       Axes: (string * TomlValue) list
       Data: (string * TomlValue) list }
 
-    override capture.ToString() = capture.OutputRelativePath
+    override capture.ToString() = capture.OutputPath
 
 type CapturePlan =
-    { MatrixPath: string
+    { ScriptPath: string
+      ScriptDirectory: string
       OutputPath: string
-      AdapterPath: string
-      FramePath: string option
+      FrameSource: FrameSource option
       BrowserPath: string option
       BrowserArguments: string list
       FramesPerSecond: int
-      DefinitionIds: string list
-      SelectedDefinitionIds: string list
       Captures: PlannedCapture list
-      Warnings: string list }
+      Force: bool }
 
     override plan.ToString() = plan.OutputPath
+
+type CapturePerformanceMetrics =
+    { Backend: RecordingBackend
+      FrameCount: int
+      UniqueFrameCount: int
+      ActiveDuration: TimeSpan
+      CaptureDurations: TimeSpan list
+      MissedSlots: int
+      DuplicatedFrames: int
+      DroppedFrames: int }
+
+    override metrics.ToString() =
+        String.Concat(
+            metrics.FrameCount.ToString(CultureInfo.InvariantCulture),
+            " frames, ",
+            metrics.ActiveDuration.TotalMilliseconds.ToString("0", CultureInfo.InvariantCulture),
+            " ms"
+        )
+
+type CaptureOutputResult =
+    { Path: string
+      Format: CaptureFormat
+      FrameTicksMs: int list
+      Performance: CapturePerformanceMetrics option
+      AnimationUpdateDurations: TimeSpan list }
+
+    override result.ToString() = result.Path
+
+type CaptureRunResult =
+    { Outputs: CaptureOutputResult list }
+
+    override result.ToString() =
+        result.Outputs
+        |> List.map (fun output -> output.Path)
+        |> String.concat Environment.NewLine

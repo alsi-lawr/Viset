@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Medium Viset example</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      :root {
+        color-scheme: light;
+        --background: #eef2f8;
+        --surface: #ffffff;
+        --text: #182033;
+        --muted: #657086;
+        --accent: #5c67e8;
+        --accent-soft: #e5e7ff;
+        --border: #dce2ed;
+      }
+
+      :root[data-theme="dark"] {
+        color-scheme: dark;
+        --background: #101522;
+        --surface: #1a2233;
+        --text: #f3f6fc;
+        --muted: #a3adc0;
+        --accent: #8b94ff;
+        --accent-soft: #30385f;
+        --border: #303a4e;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+      }
+
+      body {
+        background: var(--background);
+        color: var(--text);
+        font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      }
+
+      main {
+        display: grid;
+        height: 100%;
+        grid-template-columns: 220px 1fr;
+      }
+
+      aside {
+        padding: 32px 24px;
+        border-right: 1px solid var(--border);
+        background: var(--surface);
+      }
+
+      .brand {
+        margin-bottom: 44px;
+        font-size: 20px;
+        font-weight: 800;
+      }
+
+      nav {
+        display: grid;
+        gap: 10px;
+      }
+
+      nav span {
+        padding: 12px 14px;
+        border-radius: 12px;
+        color: var(--muted);
+        font-weight: 650;
+      }
+
+      nav span:first-child {
+        background: var(--accent-soft);
+        color: var(--accent);
+      }
+
+      .content {
+        min-width: 0;
+        padding: 36px;
+      }
+
+      header {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        margin-bottom: 28px;
+      }
+
+      h1,
+      p {
+        margin: 0;
+      }
+
+      header p,
+      .metric p,
+      .activity p {
+        color: var(--muted);
+      }
+
+      .badge {
+        padding: 9px 14px;
+        border-radius: 999px;
+        background: var(--accent-soft);
+        color: var(--accent);
+        font-weight: 700;
+      }
+
+      .metrics {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 18px;
+      }
+
+      .metric,
+      .activity {
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        background: var(--surface);
+        box-shadow: 0 14px 40px rgb(30 42 68 / 8%);
+      }
+
+      .metric {
+        padding: 22px;
+      }
+
+      .metric strong {
+        display: block;
+        margin-top: 12px;
+        font-size: 30px;
+      }
+
+      .activity {
+        margin-top: 18px;
+        padding: 24px;
+      }
+
+      .bars {
+        display: flex;
+        height: 190px;
+        align-items: end;
+        gap: 12px;
+        margin-top: 28px;
+      }
+
+      .bar {
+        flex: 1;
+        height: var(--level);
+        border-radius: 12px 12px 5px 5px;
+        background: linear-gradient(180deg, var(--accent), #35b9c5);
+        transform: scaleY(0.72);
+        transform-origin: bottom;
+      }
+
+      @media (max-width: 520px) {
+        main {
+          grid-template-columns: 1fr;
+        }
+
+        aside {
+          display: none;
+        }
+
+        .content {
+          padding: 24px 18px;
+        }
+
+        header {
+          align-items: start;
+        }
+
+        header h1 {
+          font-size: 27px;
+        }
+
+        .metrics {
+          grid-template-columns: 1fr;
+          gap: 10px;
+        }
+
+        .metric {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 14px 18px;
+        }
+
+        .metric strong {
+          margin: 0;
+          font-size: 22px;
+        }
+
+        .activity {
+          margin-top: 12px;
+          padding: 18px;
+        }
+
+        .bars {
+          height: 210px;
+          gap: 8px;
+          margin-top: 18px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <aside>
+        <div class="brand">Northstar</div>
+        <nav><span>Overview</span><span>Customers</span><span>Reports</span></nav>
+      </aside>
+      <section class="content">
+        <header>
+          <div><p>Thursday, 16 July</p><h1>Product overview</h1></div>
+          <span class="badge" id="device">desktop</span>
+        </header>
+        <section class="metrics">
+          <article class="metric"><p>Active users</p><strong>12,842</strong></article>
+          <article class="metric"><p>Conversion</p><strong>8.4%</strong></article>
+          <article class="metric"><p>Revenue</p><strong>GBP 48.2k</strong></article>
+        </section>
+        <section class="activity">
+          <h2>Weekly activity</h2>
+          <p>Completed actions across the workspace</p>
+          <div class="bars">
+            <span class="bar" style="--level: 35%"></span>
+            <span class="bar" style="--level: 62%"></span>
+            <span class="bar" style="--level: 48%"></span>
+            <span class="bar" style="--level: 82%"></span>
+            <span class="bar" style="--level: 67%"></span>
+            <span class="bar" style="--level: 92%"></span>
+            <span class="bar" style="--level: 73%"></span>
+          </div>
+        </section>
+      </section>
+    </main>
+    <script>
+      window.dashboard = {
+        render(theme, device, progress) {
+          document.documentElement.dataset.theme = theme;
+          document.querySelector("#device").textContent = device;
+          document.querySelectorAll(".bar").forEach((bar, index) => {
+            const wave = Math.sin(progress * Math.PI + index * 0.45) * 0.08;
+            bar.style.transform = `scaleY(${0.72 + progress * 0.2 + wave})`;
+          });
+        },
+      };
+    </script>
+  </body>
+</html>

@@ -254,19 +254,23 @@ type FrameServer private (listener: TcpListener, token: string, html: byte array
     interface IAsyncDisposable with
         member this.DisposeAsync() = ValueTask(this.DisposeCoreAsync())
 
-    static member Start(framePath: string, device: Device, initialImage: byte array) =
-        ArgumentException.ThrowIfNullOrWhiteSpace framePath
+    static member Start(frameSource: FrameSource, device: Device, initialImage: byte array) =
         ArgumentNullException.ThrowIfNull initialImage
 
-        if not (File.Exists framePath) then
-            invalidArg (nameof framePath) (String.Concat("Frame HTML does not exist: ", framePath))
+        let source =
+            match frameSource with
+            | CustomFrame path ->
+                if not (File.Exists path) then
+                    invalidArg (nameof frameSource) (String.Concat("Frame HTML does not exist: ", path))
+
+                File.ReadAllText path
+            | BuiltInFrame style -> BuiltInFrames.html style device
 
         let token =
             RandomNumberGenerator.GetBytes 32
             |> Convert.ToHexString
             |> fun value -> value.ToLowerInvariant()
 
-        let source = File.ReadAllText framePath
         let html = FrameInternals.injectBootstrap token source |> Encoding.UTF8.GetBytes
         let script = FrameInternals.bootstrapScript token device
         let listener = new TcpListener(IPAddress.Loopback, 0)
@@ -347,7 +351,7 @@ type FrameRenderer private (session: BrowserSession, server: FrameServer, readin
     static member StartAsync
         (
             session: BrowserSession,
-            framePath: string,
+            frameSource: FrameSource,
             device: Device,
             initialImage: byte array,
             readinessTimeout: TimeSpan,
@@ -365,7 +369,7 @@ type FrameRenderer private (session: BrowserSession, server: FrameServer, readin
                     invalidArg (nameof device) "The selected device has no frame dimensions.")
 
             Media.validatePng initialImage |> ignore
-            let server = FrameServer.Start(framePath, device, initialImage)
+            let server = FrameServer.Start(frameSource, device, initialImage)
 
             try
                 do!

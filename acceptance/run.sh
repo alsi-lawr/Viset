@@ -2,12 +2,42 @@
 set -euo pipefail
 
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-binary=${1:-"$root/src/Viset/bin/Release/net10.0/linux-x64/publish/viset"}
+python=${VISET_PYTHON:-$(command -v python3)}
+work="$root/.agent-workspace/core-fixture"
+output="$work/output"
+rm -rf "$work"
+mkdir -p "$work"
+
+if [[ ${1:-} == "--publish-current" ]]; then
+  rid=${2:-linux-x64}
+  binary="$root/src/Viset/bin/Release/net10.0/$rid/publish/viset"
+  publish_log="$work/aot-publish.log"
+
+  set +e
+  dotnet publish "$root/src/Viset/Viset.fsproj" \
+    --configuration Release \
+    --runtime "$rid" \
+    --no-restore \
+    2>&1 | tee "$publish_log"
+  publish_status=${PIPESTATUS[0]}
+  set -e
+
+  "$python" "$root/acceptance/verify-aot-log.py" "$publish_log"
+
+  if [[ "$publish_status" -ne 0 ]]; then
+    exit "$publish_status"
+  fi
+else
+  binary=${1:-"$root/src/Viset/bin/Release/net10.0/linux-x64/publish/viset"}
+fi
 
 if [[ ! -x "$binary" ]]; then
   printf 'fixture binary is not executable: %s\n' "$binary" >&2
   exit 2
 fi
+
+[[ "$("$binary" --version)" == "viset 0.1.0" ]]
+"$binary" --help | grep -q '^  viset capture CAPTURE.lua '
 
 browser=${VISET_BROWSER:-}
 if [[ -z "$browser" ]]; then
@@ -19,39 +49,60 @@ if [[ -z "$browser" ]]; then
   exit 2
 fi
 
-python=${VISET_PYTHON:-$(command -v python3)}
-port=$(
+free_port() {
   "$python" - <<'PY'
 import socket
 with socket.socket() as listener:
     listener.bind(("127.0.0.1", 0))
     print(listener.getsockname()[1])
 PY
-)
+}
 
-work="$root/.agent-workspace/core-fixture"
-output="$work/output"
-log="$work/hooks.log"
-rm -rf "$work"
-mkdir -p "$work"
+assert_port_closed() {
+  VISET_CHECK_PORT=$1 "$python" - <<'PY'
+import os
+import socket
+with socket.socket() as client:
+    client.settimeout(0.2)
+    assert client.connect_ex(("127.0.0.1", int(os.environ["VISET_CHECK_PORT"]))) != 0
+PY
+}
 
-export VISET_BROWSER="$browser"
-export VISET_FIXTURE_PORT="$port"
-export VISET_FIXTURE_ROOT="$root/acceptance"
-export VISET_FIXTURE_LOG="$log"
-export VISET_PYTHON="$python"
+run_capture() {
+  local script=$1
+  local destination=$2
+  shift 2
+  local port
+  local status=0
+  port=$(free_port)
 
-"$binary" capture "$root/acceptance/matrix.toml" --output "$output"
-"$python" "$root/acceptance/verify-manifest.py" "$output"
+  VISET_BROWSER="$browser" \
+  VISET_PYTHON="$python" \
+  VISET_FIXTURE_PORT="$port" \
+  VISET_FIXTURE_ROOT="$root/acceptance" \
+    "$binary" capture "$script" --output "$destination" "$@" || status=$?
 
-red_before=$(sha256sum "$output/screenshots/red.png" | cut -d' ' -f1)
-blue_before=$(sha256sum "$output/screenshots/blue.png" | cut -d' ' -f1)
-animation_before=$(sha256sum "$output/animations/motion.webp" | cut -d' ' -f1)
-"$binary" capture "$root/acceptance/matrix.toml" --output "$output" --only fixture-animation
-"$python" "$root/acceptance/verify-manifest.py" "$output"
-[[ "$red_before" == "$(sha256sum "$output/screenshots/red.png" | cut -d' ' -f1)" ]]
-[[ "$blue_before" == "$(sha256sum "$output/screenshots/blue.png" | cut -d' ' -f1)" ]]
-[[ "$animation_before" == "$(sha256sum "$output/animations/motion.webp" | cut -d' ' -f1)" ]]
+  assert_port_closed "$port"
+  return "$status"
+}
+
+run_capture "$root/acceptance/stills.lua" "$output"
+run_capture "$root/acceptance/animation.lua" "$output"
+
+"$python" "$root/acceptance/verify-output.py" \
+  "$output" \
+  --fps 60 \
+  --max-animation-duration-ms 800 \
+  --media-size screenshots/red.png=400x300 \
+  --media-size screenshots/blue.png=400x300 \
+  screenshots/red.png \
+  screenshots/blue.png \
+  animations/motion.webp
+
+[[ "$(sha256sum "$output/screenshots/red.png" | cut -d' ' -f1)" != \
+   "$(sha256sum "$output/screenshots/blue.png" | cut -d' ' -f1)" ]]
+[[ ! -e "$output/.viset" ]]
+[[ ! -e "$output/manifest.toml" ]]
 
 managed_dir="$root/src/Viset/bin/Release/net10.0"
 rid_dir="$managed_dir/linux-x64"
@@ -61,108 +112,76 @@ LD_LIBRARY_PATH="$rid_dir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
     --reference:"$managed_dir/Magick.NET-Q8-AnyCPU.dll" \
     "$root/acceptance/verify-media.fsx" "$output"
 
-expected_hooks=22
-actual_hooks=$(wc -l < "$log")
-if [[ "$actual_hooks" -ne "$expected_hooks" ]]; then
-  printf 'expected %d lifecycle log entries, got %d\n' "$expected_hooks" "$actual_hooks" >&2
-  cat "$log" >&2
+if run_capture "$root/acceptance/stills.lua" "$output"; then
+  printf 'existing output unexpectedly succeeded without --force\n' >&2
   exit 1
 fi
-
-mapfile -t hook_lines < "$log"
-expected_prefixes=(
-  "prepare:screenshots/red"
-  "start:screenshots/red:"
-  "ready:screenshots/red"
-  "open:screenshots/red"
-  "stop:screenshots/red"
-  "prepare:screenshots/blue"
-  "start:screenshots/blue:"
-  "ready:screenshots/blue"
-  "open:screenshots/blue"
-  "stop:screenshots/blue"
-  "prepare:animations/motion"
-  "start:animations/motion:"
-  "ready:animations/motion"
-  "open:animations/motion"
-  "workflow:animations/motion"
-  "stop:animations/motion"
-  "prepare:animations/motion"
-  "start:animations/motion:"
-  "ready:animations/motion"
-  "open:animations/motion"
-  "workflow:animations/motion"
-  "stop:animations/motion"
-)
-
-for index in "${!expected_prefixes[@]}"; do
-  if [[ "${hook_lines[$index]}" != "${expected_prefixes[$index]}"* ]]; then
-    printf 'unexpected hook order at line %d: %s\n' "$((index + 1))" "${hook_lines[$index]}" >&2
-    exit 1
-  fi
-done
-
-while IFS=: read -r action _ process_id; do
-  if [[ "$action" == "start" ]] && kill -0 "$process_id" 2>/dev/null; then
-    printf 'fixture child process remains alive: %s\n' "$process_id" >&2
-    exit 1
-  fi
-done < "$log"
+run_capture "$root/acceptance/stills.lua" "$output" --force
 
 failure_output="$work/failure-output"
-failure_log="$work/failure-hooks.log"
-export VISET_FIXTURE_LOG="$failure_log"
-export VISET_FIXTURE_FAIL=1
-
-if "$binary" capture "$root/acceptance/matrix.toml" --output "$failure_output" --only fixture-animation; then
+failure_port=$(free_port)
+if VISET_BROWSER="$browser" \
+  VISET_PYTHON="$python" \
+  VISET_FIXTURE_PORT="$failure_port" \
+  VISET_FIXTURE_ROOT="$root/acceptance" \
+  VISET_FIXTURE_FAIL=1 \
+    "$binary" capture "$root/acceptance/animation.lua" --output "$failure_output"; then
   printf 'forced fixture failure unexpectedly succeeded\n' >&2
   exit 1
 fi
+assert_port_closed "$failure_port"
+[[ ! -e "$failure_output/animations/motion.webp" ]]
 
-unset VISET_FIXTURE_FAIL
-grep -q '^stop:animations/motion$' "$failure_log"
-failure_pid=$(awk -F: '/^start:/{print $3}' "$failure_log")
-if kill -0 "$failure_pid" 2>/dev/null; then
-  printf 'forced-failure child process remains alive: %s\n' "$failure_pid" >&2
-  exit 1
-fi
+init_project="$work/init-project"
+"$binary" init "$init_project"
+[[ -f "$init_project/capture.lua" ]]
+[[ -f "$init_project/README.md" ]]
+grep -q '^/output/$' "$init_project/.gitignore"
+VISET_BROWSER="$browser" "$binary" capture "$init_project/capture.lua"
+[[ -f "$init_project/output/example.png" ]]
+grep -q 'viset capture capture.lua' "$init_project/README.md"
+grep -q 'output/example.png' "$init_project/README.md"
 
-if [[ -e "$failure_output/.viset" || -e "$failure_output/manifest.toml" ]]; then
-  printf 'forced failure wrote owned output metadata\n' >&2
-  exit 1
-fi
+interactive_project="$work/interactive-project"
+printf '%s\n' \
+  'data:text/html,%3Ch1%3EInteractive%3C%2Fh1%3E' \
+  'capture.png' \
+  '1024' \
+  '640' \
+  | "$binary" init "$interactive_project" --interactive
+grep -q '^output = "capture.png"$' "$interactive_project/capture.lua"
+grep -q '^width = 1024$' "$interactive_project/capture.lua"
+grep -q '^height = 640$' "$interactive_project/capture.lua"
+grep -q '^/capture.png$' "$interactive_project/.gitignore"
 
-unowned="$work/unowned"
-unowned_log="$work/unowned-hooks.log"
-mkdir -p "$unowned"
-printf 'preserve\n' > "$unowned/sentinel.txt"
-export VISET_FIXTURE_LOG="$unowned_log"
+minimal_output="$work/minimal-example"
+minimal_port=$(free_port)
+VISET_BROWSER="$browser" VISET_EXAMPLE_PORT="$minimal_port" VISET_EXAMPLE_PYTHON="$python" \
+  "$binary" capture "$root/examples/minimal/capture.lua" --output "$minimal_output"
+assert_port_closed "$minimal_port"
+"$python" "$root/acceptance/verify-output.py" \
+  "$minimal_output" \
+  --media-size screenshots/home.png=960x600 \
+  screenshots/home.png
 
-if "$binary" capture "$root/acceptance/matrix.toml" --output "$unowned" --only fixture-animation; then
-  printf 'unowned output root unexpectedly succeeded\n' >&2
-  exit 1
-fi
-
-grep -q '^preserve$' "$unowned/sentinel.txt"
-[[ ! -e "$unowned_log" ]]
-
-linked="$work/linked-metadata"
-linked_log="$work/linked-hooks.log"
-outside_marker="$work/outside-marker.toml"
-outside_manifest="$work/outside-manifest.toml"
-mkdir -p "$linked"
-printf 'version = 1\nowner = "viset"\nmanifest = "manifest.toml"\n' > "$outside_marker"
-printf 'preserve manifest\n' > "$outside_manifest"
-ln -s "$outside_marker" "$linked/.viset"
-ln -s "$outside_manifest" "$linked/manifest.toml"
-export VISET_FIXTURE_LOG="$linked_log"
-
-if "$binary" capture "$root/acceptance/matrix.toml" --output "$linked" --only fixture-animation; then
-  printf 'linked output metadata unexpectedly succeeded\n' >&2
-  exit 1
-fi
-
-grep -q '^preserve manifest$' "$outside_manifest"
-[[ ! -e "$linked_log" ]]
+medium_output="$work/medium-example"
+medium_port=$(free_port)
+VISET_BROWSER="$browser" VISET_EXAMPLE_PORT="$medium_port" VISET_EXAMPLE_PYTHON="$python" \
+  "$binary" capture "$root/examples/medium/screenshots.lua" --output "$medium_output"
+assert_port_closed "$medium_port"
+medium_port=$(free_port)
+VISET_BROWSER="$browser" VISET_EXAMPLE_PORT="$medium_port" VISET_EXAMPLE_PYTHON="$python" \
+  "$binary" capture "$root/examples/medium/activity.lua" --output "$medium_output"
+assert_port_closed "$medium_port"
+"$python" "$root/acceptance/verify-output.py" \
+  "$medium_output" \
+  --media-size screenshots/desktop-light.png=1088x720 \
+  --media-size screenshots/phone-light.png=924x1624 \
+  screenshots/desktop-light.png \
+  screenshots/desktop-dark.png \
+  screenshots/phone-light.png \
+  screenshots/phone-dark.png \
+  animations/desktop-light-activity.webp \
+  animations/desktop-dark-activity.webp
 
 printf 'fixture output: %s\n' "$output"
