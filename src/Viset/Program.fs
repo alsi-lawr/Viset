@@ -1,18 +1,20 @@
 namespace Viset
 
 open System
+open System.Globalization
 
 module Program =
     let private writeErrors errors =
         errors
-        |> List.iter (fun message -> Console.Error.WriteLine($"error: {message}"))
+        |> List.iter (fun message -> Console.Error.WriteLine(String.Concat("error: ", message)))
 
     let private writePlan (plan: CapturePlan) =
         plan.Warnings
-        |> List.iter (fun warning -> Console.Error.WriteLine($"warning: {warning}"))
+        |> List.iter (fun warning -> Console.Error.WriteLine(String.Concat("warning: ", warning)))
 
-        Console.Out.WriteLine($"output: {plan.OutputPath}")
-        Console.Out.WriteLine($"captures: {plan.Captures.Length}")
+        Console.Out.WriteLine(String.Concat("output: ", plan.OutputPath))
+
+        Console.Out.WriteLine(String.Concat("captures: ", plan.Captures.Length.ToString(CultureInfo.InvariantCulture)))
 
         plan.Captures
         |> List.iter (fun capture ->
@@ -21,7 +23,7 @@ module Program =
                 | Still -> "still"
                 | Animation _ -> "animation"
 
-            Console.Out.WriteLine($"{kind}: {capture.OutputRelativePath}"))
+            Console.Out.WriteLine(String.Concat(kind, ": ", capture.OutputRelativePath)))
 
     [<EntryPoint>]
     let main arguments =

@@ -5,26 +5,27 @@ open System.IO
 
 module Cli =
     let usage =
-        String.concat
-            Environment.NewLine
-            [ "Usage:"
-              "  viset capture MATRIX [--output DIR] [--only ID] [--browser PATH]"
-              "  viset browser install"
-              "  viset --version"
-              "  viset --help" ]
+        String.Join(
+            Environment.NewLine,
+            [| "Usage:"
+               "  viset capture MATRIX [--output DIR] [--only ID] [--browser PATH]"
+               "  viset browser install"
+               "  viset --version"
+               "  viset --help" |]
+        )
 
     let versionText = "viset 0.1.0"
 
     let private resolvePath label currentDirectory value =
         if String.IsNullOrWhiteSpace value then
-            Error $"{label} requires a non-empty path."
+            Error(String.Concat(label, " requires a non-empty path."))
         else
             try
                 Ok(Path.GetFullPath(value, currentDirectory))
             with
             | :? ArgumentException
             | :? NotSupportedException
-            | :? PathTooLongException -> Error $"{label} is not a valid path: {value}"
+            | :? PathTooLongException -> Error(String.Concat(label, " is not a valid path: ", value))
 
     let private parseCapture currentDirectory matrixArgument optionArguments =
         match resolvePath "MATRIX" currentDirectory matrixArgument with
@@ -39,7 +40,7 @@ module Cli =
                     match tail with
                     | value :: rest when not (value.StartsWith("--", StringComparison.Ordinal)) ->
                         continuation value rest
-                    | _ -> Error $"{optionName} requires a value."
+                    | _ -> Error(String.Concat(optionName, " requires a value."))
 
                 match remaining with
                 | [] ->
@@ -68,8 +69,8 @@ module Cli =
                         | Ok path -> parseOptions rest outputPath onlyDefinitionId (Some path)
                         | Error message -> Error message)
                 | argument :: _ when argument.StartsWith("--", StringComparison.Ordinal) ->
-                    Error $"Unknown capture option: {argument}"
-                | argument :: _ -> Error $"Unexpected capture argument: {argument}"
+                    Error(String.Concat("Unknown capture option: ", argument))
+                | argument :: _ -> Error(String.Concat("Unexpected capture argument: ", argument))
 
             parseOptions optionArguments None None None
 
@@ -84,4 +85,4 @@ module Cli =
         | [] -> Error "A command is required."
         | "capture" :: [] -> Error "capture requires MATRIX."
         | "browser" :: _ -> Error "The only supported browser command is: browser install"
-        | command :: _ -> Error $"Unknown command: {command}"
+        | command :: _ -> Error(String.Concat("Unknown command: ", command))

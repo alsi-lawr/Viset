@@ -21,6 +21,22 @@ module Matrix =
 
     let private error message = Error [ message ]
 
+    let private concat (parts: string array) = String.Concat parts
+
+    let private invariantInt32 (value: int) =
+        value.ToString(CultureInfo.InvariantCulture)
+
+    let private invariantInt64 (value: int64) =
+        value.ToString(CultureInfo.InvariantCulture)
+
+    let private appendIndex path index =
+        concat [| path; "["; invariantInt32 index; "]" |]
+
+    let private appendKey path key = concat [| path; "."; key |]
+
+    let private definitionMessage definitionId suffix =
+        concat [| "Definition '"; definitionId; "' "; suffix |]
+
     let private traverse parser values =
         let rec loop index parsed remaining =
             match remaining with
@@ -35,7 +51,7 @@ module Matrix =
     let rec private parseTomlValue path (value: obj | null) =
         let parseArray (values: (obj | null) list) =
             values
-            |> traverse (fun index item -> parseTomlValue $"{path}[{index}]" item)
+            |> traverse (fun index item -> parseTomlValue (appendIndex path index) item)
             |> Result.map TomlValue.Array
 
         let parseTable (table: TomlTable) =
@@ -43,23 +59,30 @@ module Matrix =
             |> Seq.map (fun entry -> entry.Key, entry.Value)
             |> List.ofSeq
             |> traverse (fun _ (key, item) ->
-                parseTomlValue $"{path}.{key}" item |> Result.map (fun parsed -> key, parsed))
+                parseTomlValue (appendKey path key) item
+                |> Result.map (fun parsed -> key, parsed))
             |> Result.map TomlValue.Table
 
         match value with
-        | null -> error $"{path} contains an unsupported null value."
+        | null -> error (String.Concat(path, " contains an unsupported null value."))
         | :? string as text -> Ok(TomlValue.String text)
         | :? bool as flag -> Ok(TomlValue.Boolean flag)
         | :? int64 as number ->
             if number < -MaximumLuaSafeInteger || number > MaximumLuaSafeInteger then
-                error $"{path} contains integer {number}, outside Lua's safe integer range."
+                error (
+                    concat
+                        [| path
+                           " contains integer "
+                           invariantInt64 number
+                           ", outside Lua's safe integer range." |]
+                )
             else
                 Ok(TomlValue.Integer number)
         | :? double as number ->
             if Double.IsFinite number then
                 Ok(TomlValue.Float number)
             else
-                error $"{path} contains a non-finite number."
+                error (String.Concat(path, " contains a non-finite number."))
         | :? TomlDateTime as dateTime -> Ok(TomlValue.DateTime(dateTime.ToString()))
         | :? TomlTable as table -> parseTable table
         | :? TomlTableArray as tables ->
@@ -69,27 +92,34 @@ module Matrix =
             |> List.ofSeq
             |> parseArray
         | :? TomlArray as values -> values |> Seq.cast<obj | null> |> List.ofSeq |> parseArray
-        | _ -> error $"{path} contains an unsupported TOML value."
+        | _ -> error (String.Concat(path, " contains an unsupported TOML value."))
 
     let private parseTomlTable path (table: TomlTable) =
         table
         |> Seq.map (fun entry -> entry.Key, entry.Value)
         |> List.ofSeq
         |> traverse (fun _ (key, value) ->
-            parseTomlValue $"{path}.{key}" value |> Result.map (fun parsed -> key, parsed))
+            parseTomlValue (appendKey path key) value
+            |> Result.map (fun parsed -> key, parsed))
 
     let private requiredText fieldName value =
         if String.IsNullOrWhiteSpace value then
-            error $"{fieldName} is required and must not be empty."
+            error (String.Concat(fieldName, " is required and must not be empty."))
         else
             Ok value
 
     let private parseDimensions path (model: DimensionsTomlModel) =
         let parseDimension name (value: Nullable<int64>) =
             if not value.HasValue then
-                error $"{path}.{name} is required."
+                error (String.Concat(appendKey path name, " is required."))
             elif value.Value <= 0L || value.Value > int64 Int32.MaxValue then
-                error $"{path}.{name} must be between 1 and {Int32.MaxValue}."
+                error (
+                    concat
+                        [| appendKey path name
+                           " must be between 1 and "
+                           invariantInt32 Int32.MaxValue
+                           "." |]
+                )
             else
                 Ok(int value.Value)
 
@@ -105,15 +135,17 @@ module Matrix =
             let deviceScale = model.DeviceScale |> Option.ofNullable |> Option.defaultValue 1.0
 
             if not (Double.IsFinite deviceScale) || deviceScale <= 0.0 then
-                error $"devices.{name}.device_scale must be a positive finite number."
+                error (concat [| "devices."; name; ".device_scale must be a positive finite number." |])
             else
-                match parseDimensions $"devices.{name}.viewport" model.Viewport with
+                match parseDimensions (concat [| "devices."; name; ".viewport" |]) model.Viewport with
                 | Error errors -> Error errors
                 | Ok viewport ->
                     let frameResult =
                         match Option.ofObj model.Frame with
                         | None -> Ok None
-                        | Some frame -> parseDimensions $"devices.{name}.frame" frame |> Result.map Some
+                        | Some frame ->
+                            parseDimensions (concat [| "devices."; name; ".frame" |]) frame
+                            |> Result.map Some
 
                     frameResult
                     |> Result.map (fun frame ->
@@ -137,14 +169,14 @@ module Matrix =
 
     let private parseAxes definitionId (matrix: TomlTable) =
         if matrix.Count = 0 then
-            error $"Definition '{definitionId}' requires a non-empty matrix."
+            error (definitionMessage definitionId "requires a non-empty matrix.")
         else
             matrix
             |> Seq.map (fun entry -> entry.Key, entry.Value)
             |> List.ofSeq
             |> traverse (fun _ (axisName, axisValue) ->
                 if String.IsNullOrWhiteSpace axisName then
-                    error $"Definition '{definitionId}' contains an empty axis name."
+                    error (definitionMessage definitionId "contains an empty axis name.")
                 else
                     match axisValue with
                     | :? TomlArray as values when values.Count > 0 ->
@@ -152,19 +184,37 @@ module Matrix =
                         |> Seq.cast<obj | null>
                         |> List.ofSeq
                         |> traverse (fun index value ->
-                            parseTomlValue $"definitions.{definitionId}.matrix.{axisName}[{index}]" value)
+                            parseTomlValue
+                                (concat
+                                    [| "definitions."
+                                       definitionId
+                                       ".matrix."
+                                       axisName
+                                       "["
+                                       invariantInt32 index
+                                       "]" |])
+                                value)
                         |> Result.map (fun parsed -> axisName, parsed)
-                    | :? TomlArray -> error $"Definition '{definitionId}' axis '{axisName}' must not be empty."
-                    | _ -> error $"Definition '{definitionId}' axis '{axisName}' must be a TOML array.")
+                    | :? TomlArray ->
+                        error (concat [| "Definition '"; definitionId; "' axis '"; axisName; "' must not be empty." |])
+                    | _ ->
+                        error (
+                            concat
+                                [| "Definition '"
+                                   definitionId
+                                   "' axis '"
+                                   axisName
+                                   "' must be a TOML array." |]
+                        ))
 
     let private parseData definitionId (data: TomlTable) =
-        parseTomlTable $"definitions.{definitionId}.data" data
+        parseTomlTable (concat [| "definitions."; definitionId; ".data" |]) data
 
     let private parseDefinition id name kind matrix data =
         match requiredText "Definition id" id with
         | Error errors -> Error errors
         | Ok definitionId ->
-            match requiredText $"Definition '{definitionId}' name" name with
+            match requiredText (definitionMessage definitionId "name") name with
             | Error errors -> Error errors
             | Ok nameTemplate ->
                 match parseAxes definitionId matrix with
@@ -212,7 +262,7 @@ module Matrix =
                 parsed
                 |> List.tryFind (fun definition -> not (seen.Add definition.Id))
                 |> function
-                    | Some duplicate -> error $"Definition id '{duplicate.Id}' is duplicated."
+                    | Some duplicate -> error (concat [| "Definition id '"; duplicate.Id; "' is duplicated." |])
                     | None -> Ok parsed
 
     let private scalarText definitionId placeholder value =
@@ -224,7 +274,14 @@ module Matrix =
         | TomlValue.DateTime dateTime -> Ok dateTime
         | TomlValue.Array _
         | TomlValue.Table _ ->
-            error $"Definition '{definitionId}' placeholder '{{{placeholder}}}' refers to a non-scalar axis value."
+            error (
+                concat
+                    [| "Definition '"
+                       definitionId
+                       "' placeholder '{"
+                       placeholder
+                       "}' refers to a non-scalar axis value." |]
+            )
 
     let private renderName definitionId (template: string) (axes: (string * TomlValue) list) =
         let values = Dictionary<string, TomlValue>(StringComparer.Ordinal)
@@ -236,21 +293,28 @@ module Matrix =
                 Ok(rendered.ToString())
             else
                 match template[index] with
-                | '}' -> error $"Definition '{definitionId}' name contains an unmatched closing brace."
+                | '}' -> error (definitionMessage definitionId "name contains an unmatched closing brace.")
                 | '{' ->
                     let closingIndex = template.IndexOf('}', index + 1)
 
                     if closingIndex < 0 then
-                        error $"Definition '{definitionId}' name contains an unmatched opening brace."
+                        error (definitionMessage definitionId "name contains an unmatched opening brace.")
                     else
                         let placeholder = template.Substring(index + 1, closingIndex - index - 1)
 
                         if String.IsNullOrWhiteSpace placeholder || placeholder.Contains('{') then
-                            error $"Definition '{definitionId}' name contains an invalid placeholder."
+                            error (definitionMessage definitionId "name contains an invalid placeholder.")
                         else
                             match values.TryGetValue placeholder with
                             | false, _ ->
-                                error $"Definition '{definitionId}' name requires missing axis '{placeholder}'."
+                                error (
+                                    concat
+                                        [| "Definition '"
+                                           definitionId
+                                           "' name requires missing axis '"
+                                           placeholder
+                                           "'." |]
+                                )
                             | true, value ->
                                 match scalarText definitionId placeholder value with
                                 | Error errors -> Error errors
@@ -267,11 +331,25 @@ module Matrix =
         let invalidCharacters = [| '<'; '>'; ':'; '"'; '|'; '?'; '*' |]
 
         if String.IsNullOrWhiteSpace name then
-            error $"Definition '{definitionId}' expands to an empty logical name."
+            error (definitionMessage definitionId "expands to an empty logical name.")
         elif Path.IsPathRooted name || name.Contains('\\') then
-            error $"Definition '{definitionId}' expands to unsafe logical name '{name}'."
+            error (
+                concat
+                    [| "Definition '"
+                       definitionId
+                       "' expands to unsafe logical name '"
+                       name
+                       "'." |]
+            )
         elif name.IndexOfAny invalidCharacters >= 0 || name |> Seq.exists Char.IsControl then
-            error $"Definition '{definitionId}' expands to unsafe logical name '{name}'."
+            error (
+                concat
+                    [| "Definition '"
+                       definitionId
+                       "' expands to unsafe logical name '"
+                       name
+                       "'." |]
+            )
         else
             let segments = name.Split('/', StringSplitOptions.None)
 
@@ -285,9 +363,23 @@ module Matrix =
                     || segment.EndsWith(' ')
                     || segment.EndsWith('.'))
             then
-                error $"Definition '{definitionId}' expands to unsafe logical name '{name}'."
+                error (
+                    concat
+                        [| "Definition '"
+                           definitionId
+                           "' expands to unsafe logical name '"
+                           name
+                           "'." |]
+                )
             elif not (String.IsNullOrEmpty(Path.GetExtension segments[segments.Length - 1])) then
-                error $"Definition '{definitionId}' logical name '{name}' must be extensionless."
+                error (
+                    concat
+                        [| "Definition '"
+                           definitionId
+                           "' logical name '"
+                           name
+                           "' must be extensionless." |]
+                )
             else
                 Ok name
 
@@ -302,12 +394,20 @@ module Matrix =
 
     let private bindDevice definitionId devices axes =
         match axes |> List.tryFind (fun (name, _) -> name = "device") with
-        | None -> error $"Definition '{definitionId}' matrix must contain a device axis."
+        | None -> error (definitionMessage definitionId "matrix must contain a device axis.")
         | Some(_, TomlValue.String deviceName) ->
             match Map.tryFind deviceName devices with
             | Some device -> Ok device
-            | None -> error $"Definition '{definitionId}' references unknown device '{deviceName}'."
-        | Some _ -> error $"Definition '{definitionId}' device axis values must be strings."
+            | None ->
+                error (
+                    concat
+                        [| "Definition '"
+                           definitionId
+                           "' references unknown device '"
+                           deviceName
+                           "'." |]
+                )
+        | Some _ -> error (definitionMessage definitionId "device axis values must be strings.")
 
     let private expandDefinitions (devices: Map<string, Device>) (definitions: MatrixDefinition list) =
         let logicalNames = HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -325,7 +425,12 @@ module Matrix =
                         match validateLogicalName definition.Id renderedName with
                         | Error errors -> Error errors
                         | Ok logicalName when not (logicalNames.Add logicalName) ->
-                            error $"Logical name '{logicalName}' is duplicated across capture definitions."
+                            error (
+                                concat
+                                    [| "Logical name '"
+                                       logicalName
+                                       "' is duplicated across capture definitions." |]
+                            )
                         | Ok logicalName ->
                             let extension =
                                 match definition.Kind with
@@ -336,7 +441,7 @@ module Matrix =
                                 { DefinitionId = definition.Id
                                   Kind = definition.Kind
                                   LogicalName = logicalName
-                                  OutputRelativePath = logicalName + extension
+                                  OutputRelativePath = String.Concat(logicalName, extension)
                                   Device = device
                                   Axes = axes
                                   Data = definition.Data })
@@ -362,15 +467,19 @@ module Matrix =
             || conflicts
                |> List.exists (fun required ->
                    argument.Equals(required, StringComparison.OrdinalIgnoreCase)
-                   || argument.StartsWith(required + "=", StringComparison.OrdinalIgnoreCase)))
+                   || argument.StartsWith(String.Concat(required, "="), StringComparison.OrdinalIgnoreCase)))
         |> function
             | Some argument when String.IsNullOrWhiteSpace argument ->
                 error "browser_arguments must not contain empty values."
             | Some argument when argument |> Seq.exists Char.IsControl ->
                 error "browser_arguments must not contain control characters."
             | Some argument ->
-                error
-                    $"browser_arguments contains '{argument}', which conflicts with mandatory browser launch isolation."
+                error (
+                    concat
+                        [| "browser_arguments contains '"
+                           argument
+                           "', which conflicts with mandatory browser launch isolation." |]
+                )
             | None -> Ok(List.ofSeq arguments)
 
     let private resolveFrom directory fieldName value =
@@ -382,13 +491,18 @@ module Matrix =
             with
             | :? ArgumentException
             | :? NotSupportedException
-            | :? PathTooLongException -> error $"{fieldName} is not a valid path: {path}"
+            | :? PathTooLongException -> error (concat [| fieldName; " is not a valid path: "; path |])
 
     let private validateFramesPerSecond (value: Nullable<int64>) =
         if not value.HasValue then
             Ok DefaultFramesPerSecond
         elif value.Value <= 0L || value.Value > int64 Int32.MaxValue then
-            error $"frames_per_second must be between 1 and {Int32.MaxValue}."
+            error (
+                concat
+                    [| "frames_per_second must be between 1 and "
+                       invariantInt32 Int32.MaxValue
+                       "." |]
+            )
         else
             Ok(int value.Value)
 
@@ -396,7 +510,14 @@ module Matrix =
         if not model.Version.HasValue then
             error "version is required."
         elif model.Version.Value <> SupportedVersion then
-            error $"Unsupported Matrix version {model.Version.Value}; expected {SupportedVersion}."
+            error (
+                concat
+                    [| "Unsupported Matrix version "
+                       invariantInt64 model.Version.Value
+                       "; expected "
+                       invariantInt64 SupportedVersion
+                       "." |]
+            )
         else
             let matrixDirectory =
                 Path.GetDirectoryName request.MatrixPath
@@ -421,7 +542,8 @@ module Matrix =
                         | None, defaultOutput when not (String.IsNullOrWhiteSpace defaultOutput) ->
                             resolveFrom matrixDirectory "default_output" defaultOutput
                             |> Result.map (fun outputPath ->
-                                outputPath, [ $"--output was not provided; using default_output: {outputPath}" ])
+                                outputPath,
+                                [ String.Concat("--output was not provided; using default_output: ", outputPath) ])
                         | None, _ -> error "--output is required when the matrix does not define default_output."
 
                     match outputResult with
@@ -447,7 +569,11 @@ module Matrix =
                                                     definitions |> List.tryFind (fun item -> item.Id = selectedId)
                                                 with
                                                 | Some definition -> Ok [ definition ]
-                                                | None -> error $"--only definition '{selectedId}' does not exist."
+                                                | None ->
+                                                    error (
+                                                        concat
+                                                            [| "--only definition '"; selectedId; "' does not exist." |]
+                                                    )
 
                                         match selectedDefinitions with
                                         | Error errors -> Error errors
@@ -466,11 +592,11 @@ module Matrix =
 
     let plan (request: CaptureRequest) =
         if not (File.Exists request.MatrixPath) then
-            error $"Matrix file does not exist: {request.MatrixPath}"
+            error (String.Concat("Matrix file does not exist: ", request.MatrixPath))
         else
             try
                 let source = File.ReadAllText request.MatrixPath
                 let model = MatrixTomlModels.Deserialize source
                 validateModel request model
             with ex ->
-                error $"Matrix TOML could not be parsed: {ex.Message}"
+                error (String.Concat("Matrix TOML could not be parsed: ", ex.Message))
