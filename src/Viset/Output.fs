@@ -56,6 +56,12 @@ module Output =
         if isLinkOrReparse directory then
             raise (InvalidDataException(String.Concat("Output path is a link or reparse point: ", path)))
 
+    let private ensureFileIsNotLinked path =
+        let file = FileInfo path
+
+        if isLinkOrReparse file then
+            raise (InvalidDataException(String.Concat("Output metadata is a link or reparse point: ", path)))
+
     let private normalizeRelativePath (relativePath: string) =
         if String.IsNullOrWhiteSpace relativePath then
             raise (InvalidDataException "Output path must not be empty.")
@@ -105,6 +111,9 @@ module Output =
         if Directory.Exists fullRoot then
             ensureDirectoryIsNotLinked fullRoot
             let markerPath = Path.Combine(fullRoot, MarkerFileName)
+            let manifestPath = Path.Combine(fullRoot, ManifestFileName)
+            ensureFileIsNotLinked markerPath
+            ensureFileIsNotLinked manifestPath
 
             if File.Exists markerPath then
                 File.ReadAllText markerPath
@@ -166,6 +175,7 @@ module Output =
 
     let private readExistingManifest root =
         let path = Path.Combine(root, ManifestFileName)
+        ensureFileIsNotLinked path
 
         if File.Exists path then
             File.ReadAllText path
@@ -291,6 +301,7 @@ module Output =
             written.Add path
 
         let markerPath = Path.Combine(root, MarkerFileName)
+        ensureFileIsNotLinked markerPath
         File.WriteAllText(markerPath, markerText ())
 
         let manifest = OutputManifestTomlModel()
@@ -306,6 +317,7 @@ module Output =
             |> ResizeArray
 
         let manifestPath = Path.Combine(root, ManifestFileName)
+        ensureFileIsNotLinked manifestPath
         File.WriteAllText(manifestPath, OutputTomlModels.SerializeManifest manifest)
 
         { MarkerPath = markerPath

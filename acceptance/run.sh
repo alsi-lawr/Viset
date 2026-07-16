@@ -146,4 +146,23 @@ fi
 grep -q '^preserve$' "$unowned/sentinel.txt"
 [[ ! -e "$unowned_log" ]]
 
+linked="$work/linked-metadata"
+linked_log="$work/linked-hooks.log"
+outside_marker="$work/outside-marker.toml"
+outside_manifest="$work/outside-manifest.toml"
+mkdir -p "$linked"
+printf 'version = 1\nowner = "viset"\nmanifest = "manifest.toml"\n' > "$outside_marker"
+printf 'preserve manifest\n' > "$outside_manifest"
+ln -s "$outside_marker" "$linked/.viset"
+ln -s "$outside_manifest" "$linked/manifest.toml"
+export VISET_FIXTURE_LOG="$linked_log"
+
+if "$binary" capture "$root/acceptance/matrix.toml" --output "$linked" --only fixture-animation; then
+  printf 'linked output metadata unexpectedly succeeded\n' >&2
+  exit 1
+fi
+
+grep -q '^preserve manifest$' "$outside_manifest"
+[[ ! -e "$linked_log" ]]
+
 printf 'fixture output: %s\n' "$output"
