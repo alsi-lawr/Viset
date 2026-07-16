@@ -343,7 +343,7 @@ type CdpClient private (socket: ClientWebSocket, commandTimeout: TimeSpan) =
             this.RequireSuccess metricsResponse |> ignore
 
             let touchParameters =
-                CdpTouchEmulationParameters(Enabled = touch, MaxTouchPoints = (if touch then 1 else 0))
+                CdpTouchEmulationParameters(Enabled = touch, MaxTouchPoints = 1)
 
             let! touchResponse =
                 this.SendCommandAsync(
