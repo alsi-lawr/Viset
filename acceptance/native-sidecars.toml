@@ -1,0 +1,10 @@
+version = 1
+
+[platforms.linux]
+files = ["libsharpyuv.so", "libwebp.so", "libwebpmux.so"]
+
+[platforms.macos]
+files = ["libsharpyuv.dylib", "libwebp.dylib", "libwebpmux.dylib"]
+
+[platforms.windows]
+files = ["libsharpyuv.dll", "libwebp.dll", "libwebpmux.dll"]

@@ -14,6 +14,7 @@ open BenchmarkDotNet.Environments
 open BenchmarkDotNet.Jobs
 open BenchmarkDotNet.Running
 open BenchmarkDotNet.Toolchains.NativeAot
+open ImageMagick
 open Viset
 
 module private BrowserFixture =
@@ -181,6 +182,84 @@ type ScreencastBenchmarks() =
             do! browser.AcknowledgeScreencastFrameAsync(frame.SessionId, CancellationToken.None)
             return frame.Bytes.Length
         }
+
+type WebPEncodingBenchmarkConfig() as this =
+    inherit ManualConfig()
+
+    do
+        let core = Job.ShortRun.WithRuntime(CoreRuntime.Core10_0).WithId("CoreCLR")
+
+        this.AddJob([| core |]) |> ignore
+
+        this.AddColumn(StatisticColumn.P95, StatisticColumn.P100) |> ignore
+
+[<MemoryDiagnoser>]
+[<Config(typeof<WebPEncodingBenchmarkConfig>)>]
+type WebPEncodingBenchmarks() =
+    let mutable frames: byte array list = []
+
+    let createFrame index =
+        let width = 640
+        let height = 360
+        let rgba = Array.zeroCreate<byte> (width * height * 4)
+        let movingPanelLeft = 72 + index * 19
+
+        for y in 0 .. height - 1 do
+            for x in 0 .. width - 1 do
+                let offset = (y * width + x) * 4
+                let isHeader = y < 64
+                let isCard = x >= 48 && x < 592 && y >= 92 && y < 324
+
+                let isMovingPanel =
+                    x >= movingPanelLeft && x < movingPanelLeft + 120 && y >= 132 && y < 284
+
+                let red, green, blue =
+                    if isMovingPanel then
+                        37 + index * 3, 99 + x % 31, 235 - index * 4
+                    elif isCard then
+                        232 - y % 17, 238 - x % 13, 248
+                    elif isHeader then
+                        25 + x % 23, 34 + index * 2, 56 + y % 19
+                    else
+                        242 - x % 11, 246 - y % 9, 252 - index
+
+                let isTransparentCorner =
+                    (x < 28 || x >= width - 28) && (y < 28 || y >= height - 28)
+
+                rgba[offset] <- byte red
+                rgba[offset + 1] <- byte green
+                rgba[offset + 2] <- byte blue
+                rgba[offset + 3] <- if isTransparentCorner then 0uy else 255uy
+
+        use image = new MagickImage(MagickColors.Transparent, uint width, uint height)
+
+        let settings =
+            PixelImportSettings(uint width, uint height, StorageType.Char, PixelMapping.RGBA)
+
+        image.ImportPixels(rgba, settings)
+        image.Format <- MagickFormat.Png
+        image.ToByteArray()
+
+    [<GlobalSetup>]
+    member _.Setup() =
+        frames <- [ for index in 0..11 -> createFrame index ]
+
+    [<Benchmark(Baseline = true)>]
+    member _.DecodeTwelvePngFrames() =
+        frames
+        |> List.sumBy (fun bytes ->
+            use image = new MagickImage(bytes, MagickFormat.Png)
+            image.Alpha AlphaOption.On
+            use pixels = image.GetPixels()
+
+            pixels.ToByteArray(PixelMapping.RGBA)
+            |> Option.ofObj
+            |> Option.defaultWith (fun () -> invalidOp "ImageMagick returned no RGBA benchmark data.")
+            |> Array.length)
+
+    [<Benchmark>]
+    member _.EncodeTwelveFrames() =
+        Media.encodeAnimatedWebP 60 frames |> fun animation -> animation.Bytes.Length
 
 type private ComparisonResult =
     { Backend: string

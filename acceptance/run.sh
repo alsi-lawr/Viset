@@ -36,6 +36,8 @@ if [[ ! -x "$binary" ]]; then
   exit 2
 fi
 
+"$python" "$root/acceptance/verify-native-sidecars.py" "$binary"
+
 [[ "$("$binary" --version)" == "viset 0.1.0" ]]
 "$binary" --help | grep -q '^  viset capture CAPTURE.lua '
 

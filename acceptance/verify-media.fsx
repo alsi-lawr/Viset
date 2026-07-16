@@ -26,7 +26,13 @@ try
     if animation.Count < 2 then
         failwithf "Expected a multi-frame WebP, got %d frame(s)" animation.Count
 
-    if animation |> Seq.exists (fun frame -> not frame.HasAlpha) then
-        failwith "WebP frames do not retain alpha"
+    for frame in animation do
+        if not frame.HasAlpha then
+            failwith "WebP frames do not retain alpha"
+
+        let corner = frame.GetPixels().GetPixel(0, 0).ToColor()
+
+        if corner.A <> 0uy then
+            failwith "WebP frame corner is not transparent"
 finally
     animation.Dispose()

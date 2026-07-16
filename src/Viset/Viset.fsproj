@@ -34,6 +34,7 @@
 
   <ItemGroup>
     <PackageReference Include="FSharp.Core" />
+    <PackageReference Include="Imazen.WebP.NativeRuntime.All" />
     <ProjectReference Include="../Viset.Serialization/Viset.Serialization.csproj" />
     <PackageReference Include="LuaCSharp" />
     <PackageReference Include="Magick.NET-Q8-AnyCPU" />

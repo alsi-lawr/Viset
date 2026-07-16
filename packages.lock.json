@@ -8,6 +8,21 @@
         "resolved": "10.1.301",
         "contentHash": "HXc0yzEFtH7DqjUXbwXbKA4SdGl8bEzoCfmtALp+VP9a9IKwb9UZ2zAXxQPc3ME6CPHZSCBtkK7v0tnQHWPoog=="
       },
+      "Imazen.WebP.NativeRuntime.All": {
+        "type": "Direct",
+        "requested": "[1.6.1, )",
+        "resolved": "1.6.1",
+        "contentHash": "uwUBDum58VRhjlheE3XAw35dp5sdClblIhSrzmjD6sB67HumMM8qFB0foVZE1zOw4XUjyRniWRp8/GeKCSEM+Q==",
+        "dependencies": {
+          "Imazen.WebP.NativeRuntime.linux-arm64": "1.6.1",
+          "Imazen.WebP.NativeRuntime.linux-x64": "1.6.1",
+          "Imazen.WebP.NativeRuntime.osx-arm64": "1.6.1",
+          "Imazen.WebP.NativeRuntime.osx-x64": "1.6.1",
+          "Imazen.WebP.NativeRuntime.win-arm64": "1.6.1",
+          "Imazen.WebP.NativeRuntime.win-x64": "1.6.1",
+          "Imazen.WebP.NativeRuntime.win-x86": "1.6.1"
+        }
+      },
       "LuaCSharp": {
         "type": "Direct",
         "requested": "[0.5.5, )",
@@ -38,6 +53,41 @@
         "requested": "[10.0.9, )",
         "resolved": "10.0.9",
         "contentHash": "nhee4D9Vziyu0q+r5nJn8dazjNxsDLkyNmnip2HSq0MuQuqTKHzLxCfzrBgpyJ+dvGXLhtpZImVnAnU2EFsVbQ=="
+      },
+      "Imazen.WebP.NativeRuntime.linux-arm64": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "FDnxenIsIukfoxVYDqdVJrv+wH8UT2LJjUFYUfn0Dl0g5CrIc6ky5gKlnnn2g44q0Tu6LM2VLQel1DX1yY3wIQ=="
+      },
+      "Imazen.WebP.NativeRuntime.linux-x64": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "g6dgg2KHAJD75JAjctFb57d+PRczizX5iCWWJX8pMroxU0GGM+LfQNOOTJnZHtFiRBJ3IBuKglCUKygCzTEQzw=="
+      },
+      "Imazen.WebP.NativeRuntime.osx-arm64": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "jM+p/6Yt7JMOp/annM7RgBYVAvi4NuaId3ez+opCAp/KfbHnqejkwJZvZyRva8nkEBswsk8LU+ptYklvOa0+7Q=="
+      },
+      "Imazen.WebP.NativeRuntime.osx-x64": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "sSzU91me+psXKIiiJ7aTOrA2MhbMae7T1oXbXdTvdeqbles15PBLqKTu9boKgZowOP7NGS8QI+RdewSTSSUHFQ=="
+      },
+      "Imazen.WebP.NativeRuntime.win-arm64": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "1YGYYXBP2uF73pHN+gm0Ika0+4aZbFCmmp7hBEt7Of8cnvFEp5v7qkwz9L4qoF5zaqOZykkDpt6HFw2/ZuZOpg=="
+      },
+      "Imazen.WebP.NativeRuntime.win-x64": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "xNAC283neZQZRvO7qBV2JsMddN25IcOMqijH6W9w0r/5+S9aqQyLUNQwYWFPJ2YADOYhaAsDlXG9Kq2K1oxSnA=="
+      },
+      "Imazen.WebP.NativeRuntime.win-x86": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "Iz/qUdTjvpSTkXsMBIjm84w6+befIBqDTDkWPSMBgZf6lm9uXKqKGzAYjx3a0A5AttVp8F5BU8kNyMxztfofag=="
       },
       "LuaCSharp.Annotations": {
         "type": "Transitive",
@@ -76,6 +126,41 @@
         "dependencies": {
           "Magick.NET.Core": "14.15.0"
         }
+      },
+      "Imazen.WebP.NativeRuntime.linux-arm64": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "FDnxenIsIukfoxVYDqdVJrv+wH8UT2LJjUFYUfn0Dl0g5CrIc6ky5gKlnnn2g44q0Tu6LM2VLQel1DX1yY3wIQ=="
+      },
+      "Imazen.WebP.NativeRuntime.linux-x64": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "g6dgg2KHAJD75JAjctFb57d+PRczizX5iCWWJX8pMroxU0GGM+LfQNOOTJnZHtFiRBJ3IBuKglCUKygCzTEQzw=="
+      },
+      "Imazen.WebP.NativeRuntime.osx-arm64": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "jM+p/6Yt7JMOp/annM7RgBYVAvi4NuaId3ez+opCAp/KfbHnqejkwJZvZyRva8nkEBswsk8LU+ptYklvOa0+7Q=="
+      },
+      "Imazen.WebP.NativeRuntime.osx-x64": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "sSzU91me+psXKIiiJ7aTOrA2MhbMae7T1oXbXdTvdeqbles15PBLqKTu9boKgZowOP7NGS8QI+RdewSTSSUHFQ=="
+      },
+      "Imazen.WebP.NativeRuntime.win-arm64": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "1YGYYXBP2uF73pHN+gm0Ika0+4aZbFCmmp7hBEt7Of8cnvFEp5v7qkwz9L4qoF5zaqOZykkDpt6HFw2/ZuZOpg=="
+      },
+      "Imazen.WebP.NativeRuntime.win-x64": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "xNAC283neZQZRvO7qBV2JsMddN25IcOMqijH6W9w0r/5+S9aqQyLUNQwYWFPJ2YADOYhaAsDlXG9Kq2K1oxSnA=="
+      },
+      "Imazen.WebP.NativeRuntime.win-x86": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "Iz/qUdTjvpSTkXsMBIjm84w6+befIBqDTDkWPSMBgZf6lm9uXKqKGzAYjx3a0A5AttVp8F5BU8kNyMxztfofag=="
       }
     },
     "net10.0/linux-x64": {
@@ -87,6 +172,41 @@
         "dependencies": {
           "Magick.NET.Core": "14.15.0"
         }
+      },
+      "Imazen.WebP.NativeRuntime.linux-arm64": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "FDnxenIsIukfoxVYDqdVJrv+wH8UT2LJjUFYUfn0Dl0g5CrIc6ky5gKlnnn2g44q0Tu6LM2VLQel1DX1yY3wIQ=="
+      },
+      "Imazen.WebP.NativeRuntime.linux-x64": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "g6dgg2KHAJD75JAjctFb57d+PRczizX5iCWWJX8pMroxU0GGM+LfQNOOTJnZHtFiRBJ3IBuKglCUKygCzTEQzw=="
+      },
+      "Imazen.WebP.NativeRuntime.osx-arm64": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "jM+p/6Yt7JMOp/annM7RgBYVAvi4NuaId3ez+opCAp/KfbHnqejkwJZvZyRva8nkEBswsk8LU+ptYklvOa0+7Q=="
+      },
+      "Imazen.WebP.NativeRuntime.osx-x64": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "sSzU91me+psXKIiiJ7aTOrA2MhbMae7T1oXbXdTvdeqbles15PBLqKTu9boKgZowOP7NGS8QI+RdewSTSSUHFQ=="
+      },
+      "Imazen.WebP.NativeRuntime.win-arm64": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "1YGYYXBP2uF73pHN+gm0Ika0+4aZbFCmmp7hBEt7Of8cnvFEp5v7qkwz9L4qoF5zaqOZykkDpt6HFw2/ZuZOpg=="
+      },
+      "Imazen.WebP.NativeRuntime.win-x64": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "xNAC283neZQZRvO7qBV2JsMddN25IcOMqijH6W9w0r/5+S9aqQyLUNQwYWFPJ2YADOYhaAsDlXG9Kq2K1oxSnA=="
+      },
+      "Imazen.WebP.NativeRuntime.win-x86": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "Iz/qUdTjvpSTkXsMBIjm84w6+befIBqDTDkWPSMBgZf6lm9uXKqKGzAYjx3a0A5AttVp8F5BU8kNyMxztfofag=="
       }
     },
     "net10.0/osx-arm64": {
@@ -98,6 +218,41 @@
         "dependencies": {
           "Magick.NET.Core": "14.15.0"
         }
+      },
+      "Imazen.WebP.NativeRuntime.linux-arm64": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "FDnxenIsIukfoxVYDqdVJrv+wH8UT2LJjUFYUfn0Dl0g5CrIc6ky5gKlnnn2g44q0Tu6LM2VLQel1DX1yY3wIQ=="
+      },
+      "Imazen.WebP.NativeRuntime.linux-x64": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "g6dgg2KHAJD75JAjctFb57d+PRczizX5iCWWJX8pMroxU0GGM+LfQNOOTJnZHtFiRBJ3IBuKglCUKygCzTEQzw=="
+      },
+      "Imazen.WebP.NativeRuntime.osx-arm64": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "jM+p/6Yt7JMOp/annM7RgBYVAvi4NuaId3ez+opCAp/KfbHnqejkwJZvZyRva8nkEBswsk8LU+ptYklvOa0+7Q=="
+      },
+      "Imazen.WebP.NativeRuntime.osx-x64": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "sSzU91me+psXKIiiJ7aTOrA2MhbMae7T1oXbXdTvdeqbles15PBLqKTu9boKgZowOP7NGS8QI+RdewSTSSUHFQ=="
+      },
+      "Imazen.WebP.NativeRuntime.win-arm64": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "1YGYYXBP2uF73pHN+gm0Ika0+4aZbFCmmp7hBEt7Of8cnvFEp5v7qkwz9L4qoF5zaqOZykkDpt6HFw2/ZuZOpg=="
+      },
+      "Imazen.WebP.NativeRuntime.win-x64": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "xNAC283neZQZRvO7qBV2JsMddN25IcOMqijH6W9w0r/5+S9aqQyLUNQwYWFPJ2YADOYhaAsDlXG9Kq2K1oxSnA=="
+      },
+      "Imazen.WebP.NativeRuntime.win-x86": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "Iz/qUdTjvpSTkXsMBIjm84w6+befIBqDTDkWPSMBgZf6lm9uXKqKGzAYjx3a0A5AttVp8F5BU8kNyMxztfofag=="
       }
     },
     "net10.0/win-arm64": {
@@ -109,6 +264,41 @@
         "dependencies": {
           "Magick.NET.Core": "14.15.0"
         }
+      },
+      "Imazen.WebP.NativeRuntime.linux-arm64": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "FDnxenIsIukfoxVYDqdVJrv+wH8UT2LJjUFYUfn0Dl0g5CrIc6ky5gKlnnn2g44q0Tu6LM2VLQel1DX1yY3wIQ=="
+      },
+      "Imazen.WebP.NativeRuntime.linux-x64": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "g6dgg2KHAJD75JAjctFb57d+PRczizX5iCWWJX8pMroxU0GGM+LfQNOOTJnZHtFiRBJ3IBuKglCUKygCzTEQzw=="
+      },
+      "Imazen.WebP.NativeRuntime.osx-arm64": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "jM+p/6Yt7JMOp/annM7RgBYVAvi4NuaId3ez+opCAp/KfbHnqejkwJZvZyRva8nkEBswsk8LU+ptYklvOa0+7Q=="
+      },
+      "Imazen.WebP.NativeRuntime.osx-x64": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "sSzU91me+psXKIiiJ7aTOrA2MhbMae7T1oXbXdTvdeqbles15PBLqKTu9boKgZowOP7NGS8QI+RdewSTSSUHFQ=="
+      },
+      "Imazen.WebP.NativeRuntime.win-arm64": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "1YGYYXBP2uF73pHN+gm0Ika0+4aZbFCmmp7hBEt7Of8cnvFEp5v7qkwz9L4qoF5zaqOZykkDpt6HFw2/ZuZOpg=="
+      },
+      "Imazen.WebP.NativeRuntime.win-x64": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "xNAC283neZQZRvO7qBV2JsMddN25IcOMqijH6W9w0r/5+S9aqQyLUNQwYWFPJ2YADOYhaAsDlXG9Kq2K1oxSnA=="
+      },
+      "Imazen.WebP.NativeRuntime.win-x86": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "Iz/qUdTjvpSTkXsMBIjm84w6+befIBqDTDkWPSMBgZf6lm9uXKqKGzAYjx3a0A5AttVp8F5BU8kNyMxztfofag=="
       }
     },
     "net10.0/win-x64": {
@@ -120,6 +310,41 @@
         "dependencies": {
           "Magick.NET.Core": "14.15.0"
         }
+      },
+      "Imazen.WebP.NativeRuntime.linux-arm64": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "FDnxenIsIukfoxVYDqdVJrv+wH8UT2LJjUFYUfn0Dl0g5CrIc6ky5gKlnnn2g44q0Tu6LM2VLQel1DX1yY3wIQ=="
+      },
+      "Imazen.WebP.NativeRuntime.linux-x64": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "g6dgg2KHAJD75JAjctFb57d+PRczizX5iCWWJX8pMroxU0GGM+LfQNOOTJnZHtFiRBJ3IBuKglCUKygCzTEQzw=="
+      },
+      "Imazen.WebP.NativeRuntime.osx-arm64": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "jM+p/6Yt7JMOp/annM7RgBYVAvi4NuaId3ez+opCAp/KfbHnqejkwJZvZyRva8nkEBswsk8LU+ptYklvOa0+7Q=="
+      },
+      "Imazen.WebP.NativeRuntime.osx-x64": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "sSzU91me+psXKIiiJ7aTOrA2MhbMae7T1oXbXdTvdeqbles15PBLqKTu9boKgZowOP7NGS8QI+RdewSTSSUHFQ=="
+      },
+      "Imazen.WebP.NativeRuntime.win-arm64": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "1YGYYXBP2uF73pHN+gm0Ika0+4aZbFCmmp7hBEt7Of8cnvFEp5v7qkwz9L4qoF5zaqOZykkDpt6HFw2/ZuZOpg=="
+      },
+      "Imazen.WebP.NativeRuntime.win-x64": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "xNAC283neZQZRvO7qBV2JsMddN25IcOMqijH6W9w0r/5+S9aqQyLUNQwYWFPJ2YADOYhaAsDlXG9Kq2K1oxSnA=="
+      },
+      "Imazen.WebP.NativeRuntime.win-x86": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "Iz/qUdTjvpSTkXsMBIjm84w6+befIBqDTDkWPSMBgZf6lm9uXKqKGzAYjx3a0A5AttVp8F5BU8kNyMxztfofag=="
       }
     }
   }
