@@ -14,6 +14,7 @@ namespace Viset.Serialization;
 [JsonSerializable(typeof(CdpEvaluateParameters))]
 [JsonSerializable(typeof(CdpDeviceMetricsParameters))]
 [JsonSerializable(typeof(CdpTouchEmulationParameters))]
+[JsonSerializable(typeof(CdpDispatchTouchEventParameters))]
 [JsonSerializable(typeof(CdpBackgroundParameters))]
 [JsonSerializable(typeof(CdpScreenshotParameters))]
 [JsonSerializable(typeof(CdpNavigateResultModel))]

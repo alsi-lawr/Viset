@@ -372,6 +372,37 @@ type CdpClient private (socket: ClientWebSocket, commandTimeout: TimeSpan) =
             this.RequireSuccess response |> ignore
         }
 
+    member this.TouchAsync(x: double, y: double, cancellationToken: CancellationToken) =
+        task {
+            if not (Double.IsFinite x) || not (Double.IsFinite y) || x < 0.0 || y < 0.0 then
+                invalidArg (nameof x) "Touch coordinates must be non-negative finite numbers."
+
+            let point = CdpTouchPointModel(X = x, Y = y)
+
+            let startParameters =
+                CdpDispatchTouchEventParameters(Type = "touchStart", TouchPoints = ResizeArray [ point ])
+
+            let! startResponse =
+                this.SendCommandAsync(
+                    "Input.dispatchTouchEvent",
+                    (fun id -> CdpJsonModels.SerializeCommand(id, "Input.dispatchTouchEvent", startParameters)),
+                    cancellationToken
+                )
+
+            this.RequireSuccess startResponse |> ignore
+
+            let endParameters = CdpDispatchTouchEventParameters(Type = "touchEnd")
+
+            let! endResponse =
+                this.SendCommandAsync(
+                    "Input.dispatchTouchEvent",
+                    (fun id -> CdpJsonModels.SerializeCommand(id, "Input.dispatchTouchEvent", endParameters)),
+                    cancellationToken
+                )
+
+            this.RequireSuccess endResponse |> ignore
+        }
+
     member this.CapturePngAsync(cancellationToken: CancellationToken) =
         task {
             let parameters = CdpScreenshotParameters()

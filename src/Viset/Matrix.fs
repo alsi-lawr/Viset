@@ -587,6 +587,10 @@ module Matrix =
                                                   BrowserPath = request.BrowserPath
                                                   BrowserArguments = browserArguments
                                                   FramesPerSecond = framesPerSecond
+                                                  DefinitionIds =
+                                                    definitions |> List.map (fun definition -> definition.Id)
+                                                  SelectedDefinitionIds =
+                                                    selected |> List.map (fun definition -> definition.Id)
                                                   Captures = captures
                                                   Warnings = warnings })
 

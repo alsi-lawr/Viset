@@ -1,0 +1,37 @@
+version = 1
+adapter = "adapter.lua"
+frame = "frame.html"
+frames_per_second = 30
+browser_arguments = []
+
+[devices.fixture]
+mobile = false
+touch = true
+device_scale = 1.0
+
+[devices.fixture.viewport]
+width = 240
+height = 160
+
+[devices.fixture.frame]
+width = 400
+height = 300
+
+[[stills]]
+id = "fixture-stills"
+name = "screenshots/{view}"
+
+[stills.matrix]
+device = ["fixture"]
+view = ["red", "blue"]
+
+[[animations]]
+id = "fixture-animation"
+name = "animations/motion"
+workflow = "motion"
+
+[animations.matrix]
+device = ["fixture"]
+
+[animations.data]
+view = "motion"

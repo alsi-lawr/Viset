@@ -12,4 +12,6 @@ namespace Viset.Serialization;
 )]
 [TomlSerializable(typeof(MatrixTomlModel))]
 [TomlSerializable(typeof(BrowserLockTomlModel))]
+[TomlSerializable(typeof(OutputMarkerTomlModel))]
+[TomlSerializable(typeof(OutputManifestTomlModel))]
 internal partial class TomlModelContext : TomlSerializerContext;

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Viset frame fixture</title>
+    <style>
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        background: transparent;
+        overflow: hidden;
+      }
+
+      body {
+        display: grid;
+        place-items: center;
+      }
+
+      .shell {
+        width: 320px;
+        height: 220px;
+        padding: 12px;
+        border-radius: 28px;
+        background: rgb(28 31 39 / 94%);
+        box-shadow: 0 24px 56px rgb(0 0 0 / 32%);
+      }
+
+      img {
+        width: 100%;
+        height: 100%;
+        border-radius: 18px;
+        object-fit: cover;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell"><img alt="Captured fixture"></div>
+    <script>
+      const image = document.querySelector("img");
+
+      visetFrame.subscribe(async state => {
+        document.documentElement.removeAttribute("data-frame-ready");
+        image.src = state.image_url;
+        await image.decode();
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        document.documentElement.setAttribute("data-frame-ready", "");
+      });
+    </script>
+  </body>
+</html>

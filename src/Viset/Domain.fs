@@ -105,6 +105,8 @@ type CapturePlan =
       BrowserPath: string option
       BrowserArguments: string list
       FramesPerSecond: int
+      DefinitionIds: string list
+      SelectedDefinitionIds: string list
       Captures: PlannedCapture list
       Warnings: string list }
 

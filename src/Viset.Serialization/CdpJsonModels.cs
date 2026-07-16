@@ -43,6 +43,18 @@ public static class CdpJsonModels
     public static byte[] SerializeCommand(
         long id,
         string method,
+        CdpDispatchTouchEventParameters parameters
+    ) =>
+        SerializeCommand(
+            id,
+            method,
+            parameters,
+            CdpJsonContext.Default.CdpDispatchTouchEventParameters
+        );
+
+    public static byte[] SerializeCommand(
+        long id,
+        string method,
         CdpBackgroundParameters parameters
     ) => SerializeCommand(id, method, parameters, CdpJsonContext.Default.CdpBackgroundParameters);
 
@@ -168,6 +180,26 @@ public sealed class CdpTouchEmulationParameters
     public bool Enabled { get; set; }
 
     public int MaxTouchPoints { get; set; }
+}
+
+public sealed class CdpDispatchTouchEventParameters
+{
+    public string Type { get; set; } = string.Empty;
+
+    public List<CdpTouchPointModel> TouchPoints { get; set; } = [];
+}
+
+public sealed class CdpTouchPointModel
+{
+    public double X { get; set; }
+
+    public double Y { get; set; }
+
+    public double RadiusX { get; set; } = 1.0;
+
+    public double RadiusY { get; set; } = 1.0;
+
+    public double Force { get; set; } = 1.0;
 }
 
 public sealed class CdpBackgroundParameters

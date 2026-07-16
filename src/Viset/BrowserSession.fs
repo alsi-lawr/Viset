@@ -375,6 +375,9 @@ type BrowserSession
     member this.SetTransparentBackgroundAsync(cancellationToken: CancellationToken) =
         this.RunAsync("set transparent background", fun () -> client.SetTransparentBackgroundAsync cancellationToken)
 
+    member this.TouchAsync(x: double, y: double, cancellationToken: CancellationToken) =
+        this.RunAsync("dispatch touch", fun () -> client.TouchAsync(x, y, cancellationToken))
+
     member this.CapturePngAsync(cancellationToken: CancellationToken) =
         this.RunAsync("capture PNG", fun () -> client.CapturePngAsync cancellationToken)
 

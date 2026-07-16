@@ -19,6 +19,11 @@
     <Compile Include="BrowserSession.fs" />
     <Compile Include="BrowserResolution.fs" />
     <Compile Include="BrowserInstall.fs" />
+    <Compile Include="Media.fs" />
+    <Compile Include="Frame.fs" />
+    <Compile Include="Capture.fs" />
+    <Compile Include="Output.fs" />
+    <Compile Include="LuaHost.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 

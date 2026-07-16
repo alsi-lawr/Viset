@@ -4,6 +4,9 @@ open System
 open System.IO
 
 module Cli =
+    [<Literal>]
+    let version = "0.1.0"
+
     let usage =
         String.Join(
             Environment.NewLine,
@@ -14,7 +17,7 @@ module Cli =
                "  viset --help" |]
         )
 
-    let versionText = "viset 0.1.0"
+    let versionText = String.Concat("viset ", version)
 
     let private resolvePath label currentDirectory value =
         if String.IsNullOrWhiteSpace value then

@@ -41,6 +41,45 @@ module Program =
             Console.Out.WriteLine(String.Concat("version: ", browser.Version))
             0
 
+    let private capture (plan: CapturePlan) =
+        use cancellation = new CancellationTokenSource()
+
+        let cancelHandler =
+            ConsoleCancelEventHandler(fun _ arguments ->
+                arguments.Cancel <- true
+                cancellation.Cancel())
+
+        Console.CancelKeyPress.AddHandler cancelHandler
+
+        try
+            writePlan plan
+            let sidecar = BrowserInstall.findBrowserLockSidecar AppContext.BaseDirectory
+
+            match
+                BrowserResolution.resolveAsync plan.BrowserPath sidecar cancellation.Token
+                |> fun work -> work.GetAwaiter().GetResult()
+            with
+            | Error message ->
+                writeErrors [ message ]
+                3
+            | Ok browser ->
+                try
+                    let result =
+                        LuaHost.runAsync Cli.version plan browser cancellation.Token
+                        |> fun work -> work.GetAwaiter().GetResult()
+
+                    Console.Out.WriteLine(String.Concat("manifest: ", result.ManifestPath))
+                    0
+                with
+                | :? OperationCanceledException ->
+                    writeErrors [ "Capture was cancelled." ]
+                    130
+                | error ->
+                    writeErrors [ error.Message ]
+                    1
+        finally
+            Console.CancelKeyPress.RemoveHandler cancelHandler
+
     [<EntryPoint>]
     let main arguments =
         match Cli.parse Environment.CurrentDirectory arguments with
@@ -59,6 +98,4 @@ module Program =
             | Error errors ->
                 writeErrors errors
                 2
-            | Ok plan ->
-                writePlan plan
-                0
+            | Ok plan -> capture plan
