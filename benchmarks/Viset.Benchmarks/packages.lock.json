@@ -24,7 +24,7 @@
         "type": "Direct",
         "requested": "[10.0.9, )",
         "resolved": "10.0.9",
-        "contentHash": "nhee4D9Vziyu0q+r5nJn8dazjNxsDLkyNmnip2HSq0MuQuqTKHzLxCfzrBgpyJ+dvGXLhtpZImVnAnU2EFsVbQ=="
+        "contentHash": "Jrd1nlwSQvxofLIFqbjR4eNiSxiyRCzXmSuNaoK5qm4/iKQX+Ja9TbMnjsEVuEzHUi17SXzNxspwUoby0UqUIA=="
       },
       "BenchmarkDotNet.Annotations": {
         "type": "Transitive",
@@ -242,7 +242,7 @@
         "type": "CentralTransitive",
         "requested": "[10.1.301, )",
         "resolved": "10.1.301",
-        "contentHash": "HXc0yzEFtH7DqjUXbwXbKA4SdGl8bEzoCfmtALp+VP9a9IKwb9UZ2zAXxQPc3ME6CPHZSCBtkK7v0tnQHWPoog=="
+        "contentHash": "PMmvYahMRtdhVc7t5tO/H5eKlErZtvpaPrBfOp7OVduF3uYQ6bUWRzzqf462jtQl+1J8Z0JbCAtZPcV2EGWAhw=="
       },
       "Imazen.WebP.NativeRuntime.All": {
         "type": "CentralTransitive",

@@ -10,6 +10,7 @@
     <InvariantGlobalization>false</InvariantGlobalization>
     <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
     <TomlynIsReflectionEnabledByDefault>false</TomlynIsReflectionEnabledByDefault>
+    <RuntimeFrameworkVersion>10.0.9</RuntimeFrameworkVersion>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <RestoreLockedMode>true</RestoreLockedMode>
     <NuGetLockFilePath Condition="'$(MSBuildProjectName)' == 'Viset'"

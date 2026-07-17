@@ -6,7 +6,7 @@
         "type": "Direct",
         "requested": "[10.1.301, )",
         "resolved": "10.1.301",
-        "contentHash": "HXc0yzEFtH7DqjUXbwXbKA4SdGl8bEzoCfmtALp+VP9a9IKwb9UZ2zAXxQPc3ME6CPHZSCBtkK7v0tnQHWPoog=="
+        "contentHash": "PMmvYahMRtdhVc7t5tO/H5eKlErZtvpaPrBfOp7OVduF3uYQ6bUWRzzqf462jtQl+1J8Z0JbCAtZPcV2EGWAhw=="
       },
       "Imazen.WebP.NativeRuntime.All": {
         "type": "Direct",
@@ -46,13 +46,13 @@
         "type": "Direct",
         "requested": "[10.0.9, )",
         "resolved": "10.0.9",
-        "contentHash": "cq8NLSG0RbpBpHeWtbDTMTIwF3Bj0OLSm8eZbyK4+ifpmcaD4FzZlpEYFUDZF2+ix5tLT96+tBUbFnksEFPi+Q=="
+        "contentHash": "lFD47xkDgZjasIj/iIOyiNvg18+Hdvwy5eE5K/Mxr96PD7eL/XknIJbpK7rQGiWRhh29zU1WXnkQaVj5gzPXFg=="
       },
       "Microsoft.NET.ILLink.Tasks": {
         "type": "Direct",
         "requested": "[10.0.9, )",
         "resolved": "10.0.9",
-        "contentHash": "nhee4D9Vziyu0q+r5nJn8dazjNxsDLkyNmnip2HSq0MuQuqTKHzLxCfzrBgpyJ+dvGXLhtpZImVnAnU2EFsVbQ=="
+        "contentHash": "Jrd1nlwSQvxofLIFqbjR4eNiSxiyRCzXmSuNaoK5qm4/iKQX+Ja9TbMnjsEVuEzHUi17SXzNxspwUoby0UqUIA=="
       },
       "Imazen.WebP.NativeRuntime.linux-arm64": {
         "type": "Transitive",
