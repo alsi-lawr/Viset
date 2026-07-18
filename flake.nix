@@ -153,6 +153,20 @@
           touch "$out"
         '';
 
+      mkDocumentationCheck =
+        system:
+        let
+          pkgs = mkPkgs system;
+        in
+        pkgs.runCommand "viset-documentation-check"
+          {
+            nativeBuildInputs = [ pkgs.python3 ];
+          }
+          ''
+            python3 ${./.config/verify-documentation.py} ${./.}
+            touch "$out"
+          '';
+
     in
     {
       packages = forAllSystems (system: {
@@ -206,6 +220,7 @@
       checks = forAllSystems (system: {
         package = self.packages.${system}.default;
         cli = mkCliCheck system;
+        documentation = mkDocumentationCheck system;
       });
     };
 }

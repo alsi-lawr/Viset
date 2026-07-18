@@ -9,7 +9,7 @@ import pathlib
 SYSTEMS = {"x86_64-linux", "aarch64-linux", "aarch64-darwin"}
 OUTPUTS = {
     "apps": {"default", "viset"},
-    "checks": {"cli", "package"},
+    "checks": {"cli", "documentation", "package"},
     "devShells": {"default"},
     "packages": {"default", "viset"},
 }
