@@ -53,12 +53,13 @@ jobs:
           nix build ".#packages.${{ matrix.system }}.default" --print-build-logs
           test "$(./result/bin/viset --version)" = "viset 0.1.0"
           test "$(nix run ".#apps.${{ matrix.system }}.default" -- --version)" = "viset 0.1.0"
-          browser_arguments=()
           if [[ "${{ matrix.system }}" == *-linux ]]; then
-            browser_arguments+=(--browser-argument=--no-sandbox)
+            env -u VISET_BROWSER python3 acceptance/smoke-capture.py \
+              ./result/bin/viset --browser-argument=--no-sandbox
+          else
+            env -u VISET_BROWSER python3 acceptance/smoke-capture.py \
+              ./result/bin/viset
           fi
-          env -u VISET_BROWSER python3 acceptance/smoke-capture.py \
-            ./result/bin/viset "${browser_arguments[@]}"
 
       - name: Exercise development shell and formatter
         shell: bash
