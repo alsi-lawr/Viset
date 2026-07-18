@@ -64,4 +64,9 @@ jobs:
           set -euo pipefail
           env -u VISET_BROWSER nix develop ".#devShells.${{ matrix.system }}.default" \
             --command bash acceptance/verify-dev-shell.sh
+          if [[ "${{ matrix.system }}" == "x86_64-linux" ]]; then
+            env -u VISET_BROWSER nix develop ".#devShells.${{ matrix.system }}.default" \
+              --command bash -c \
+                'dotnet tool restore && dotnet fantomas --check src tests benchmarks && dotnet csharpier check src/Viset.Serialization'
+          fi
           nix fmt -- --check flake.nix

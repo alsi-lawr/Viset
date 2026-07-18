@@ -8,6 +8,8 @@ output="$work/output"
 rm -rf "$work"
 mkdir -p "$work"
 
+"$python" "$root/.config/verify-documentation.py" "$root"
+
 dotnet test "$root/tests/Viset.Tests/Viset.Tests.fsproj" \
   --configuration Release \
   --no-restore
