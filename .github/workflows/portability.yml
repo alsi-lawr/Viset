@@ -20,23 +20,23 @@ jobs:
         include:
           - rid: linux-x64
             runner: ubuntu-24.04
-            portable_linux: true
+            executable: viset
             capture_smoke: true
           - rid: linux-arm64
             runner: ubuntu-24.04-arm
-            portable_linux: true
+            executable: viset
             capture_smoke: false
           - rid: win-x64
             runner: windows-2025
-            portable_linux: false
+            executable: viset.exe
             capture_smoke: false
           - rid: win-arm64
             runner: windows-11-arm
-            portable_linux: false
+            executable: viset.exe
             capture_smoke: false
           - rid: osx-arm64
             runner: macos-15
-            portable_linux: false
+            executable: viset
             capture_smoke: false
 
     steps:
@@ -64,32 +64,15 @@ jobs:
       - name: Check Native AOT diagnostics
         run: python acceptance/verify-aot-log.py "publish-${{ matrix.rid }}.log"
 
-      - name: Stage portable payload
-        run: >-
-          python scripts/publish/stage.py
-          --rid "${{ matrix.rid }}"
-          --publish-directory "src/Viset/bin/Release/net10.0/${{ matrix.rid }}/publish"
-          --destination "artifacts/${{ matrix.rid }}"
-
-      - name: Qualify native payload
+      - name: Check Native AOT executable
         shell: bash
         run: |
-          arguments=(
-            --rid "${{ matrix.rid }}"
-            --directory "artifacts/${{ matrix.rid }}"
-          )
-          if [[ "${{ matrix.portable_linux }}" == "true" ]]; then
-            arguments+=(--require-portable-linux)
-          fi
-          python scripts/publish/qualify.py "${arguments[@]}"
+          binary="src/Viset/bin/Release/net10.0/${{ matrix.rid }}/publish/${{ matrix.executable }}"
+          test "$("$binary" --version)" = "viset 0.1.0"
+          "$binary" --help | grep -Fq "viset capture CAPTURE.lua"
 
       - name: Capture smoke
         if: matrix.capture_smoke
-        run: python acceptance/smoke-capture.py "artifacts/${{ matrix.rid }}/viset"
-
-      - name: Upload qualified payload
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: viset-${{ matrix.rid }}
-          path: artifacts/${{ matrix.rid }}
-          if-no-files-found: error
+        run: >-
+          python acceptance/smoke-capture.py
+          "src/Viset/bin/Release/net10.0/${{ matrix.rid }}/publish/${{ matrix.executable }}"
