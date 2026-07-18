@@ -1,0 +1,64 @@
+name: Nix
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    name: ${{ matrix.system }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - system: x86_64-linux
+            runner: ubuntu-24.04
+          - system: aarch64-linux
+            runner: ubuntu-24.04-arm
+          - system: aarch64-darwin
+            runner: macos-15
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342 # v31.11.0
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify flake output inventory
+        shell: bash
+        run: |
+          set -o pipefail
+          nix flake show --json > flake-show.json
+          python3 acceptance/verify-flake.py \
+            --inventory flake-show.json \
+            --system "${{ matrix.system }}"
+
+      - name: Check native flake
+        run: nix flake check --print-build-logs
+
+      - name: Exercise package, app, and browser wrapper
+        shell: bash
+        run: |
+          set -euo pipefail
+          nix build ".#packages.${{ matrix.system }}.default" --print-build-logs
+          test "$(./result/bin/viset --version)" = "viset 0.1.0"
+          test "$(nix run ".#apps.${{ matrix.system }}.default" -- --version)" = "viset 0.1.0"
+          python3 acceptance/smoke-capture.py ./result/bin/viset
+
+      - name: Exercise development shell and formatter
+        shell: bash
+        run: |
+          set -euo pipefail
+          nix develop ".#devShells.${{ matrix.system }}.default" \
+            --command bash acceptance/verify-dev-shell.sh
+          nix fmt -- --check flake.nix
