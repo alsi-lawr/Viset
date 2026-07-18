@@ -3,5 +3,8 @@
   <Folder Name="/benchmarks/">
     <Project Path="benchmarks/Viset.Benchmarks/Viset.Benchmarks.fsproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Viset.Tests/Viset.Tests.fsproj" />
+  </Folder>
   <Project Path="src/Viset.Serialization/Viset.Serialization.csproj" />
 </Solution>

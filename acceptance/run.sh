@@ -8,7 +8,9 @@ output="$work/output"
 rm -rf "$work"
 mkdir -p "$work"
 
-dotnet fsi --exec "$root/acceptance/verify-functional-core.fsx"
+dotnet test "$root/tests/Viset.Tests/Viset.Tests.fsproj" \
+  --configuration Release \
+  --no-restore
 
 if [[ ${1:-} == "--publish-current" ]]; then
   rid=${2:-linux-x64}

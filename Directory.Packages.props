@@ -7,9 +7,13 @@
   <ItemGroup>
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
     <PackageVersion Include="FSharp.Core" Version="10.1.301" />
+    <PackageVersion Include="FsUnit" Version="7.1.1" />
     <PackageVersion Include="Imazen.WebP.NativeRuntime.All" Version="1.6.1" />
     <PackageVersion Include="LuaCSharp" Version="0.5.5" />
     <PackageVersion Include="Magick.NET-Q8-AnyCPU" Version="14.15.0" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
+    <PackageVersion Include="NUnit" Version="4.6.1" />
+    <PackageVersion Include="NUnit3TestAdapter" Version="6.2.0" />
     <PackageVersion Include="StbImageSharp" Version="2.30.15" />
     <PackageVersion Include="Tomlyn" Version="2.10.1" />
   </ItemGroup>
