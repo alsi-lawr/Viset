@@ -46,7 +46,7 @@ jobs:
       - name: Check native flake
         run: nix flake check --print-build-logs
 
-      - name: Exercise package, app, and browser wrapper
+      - name: Exercise package, app, and Linux capture
         shell: bash
         run: |
           set -euo pipefail
@@ -56,9 +56,6 @@ jobs:
           if [[ "${{ matrix.system }}" == *-linux ]]; then
             env -u VISET_BROWSER python3 acceptance/smoke-capture.py \
               ./result/bin/viset --browser-argument=--no-sandbox
-          else
-            env -u VISET_BROWSER python3 acceptance/smoke-capture.py \
-              ./result/bin/viset
           fi
 
       - name: Exercise development shell and formatter

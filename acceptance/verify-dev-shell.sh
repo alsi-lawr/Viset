@@ -16,6 +16,7 @@ done
 
 test -n "$VISET_BROWSER"
 test -x "$VISET_BROWSER"
+"$VISET_BROWSER" --version >/dev/null
 
 case "$VISET_BROWSER" in
   /nix/store/*) ;;
