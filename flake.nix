@@ -125,7 +125,7 @@
           makeWrapperArgs = [
             "--set-default"
             "VISET_BROWSER"
-            browser.executable
+            (lib.escapeShellArg browser.executable)
           ];
 
           meta = {
