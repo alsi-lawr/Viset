@@ -1,57 +1,41 @@
-# Viset
+<div align="center">
+  <img src="docs/assets/viset-logo.svg" width="168" alt="Viset logo">
+  <h1>Viset</h1>
+  <p><strong>Write browser screenshots and animations as code for testing and demoing your web apps.</strong></p>
+  <p>
+    <a href="https://github.com/alsi-lawr/Viset/actions/workflows/nix.yml"><img src="https://github.com/alsi-lawr/Viset/actions/workflows/nix.yml/badge.svg" alt="Nix build"></a>
+    <a href="https://github.com/alsi-lawr/Viset/actions/workflows/portability.yml"><img src="https://github.com/alsi-lawr/Viset/actions/workflows/portability.yml/badge.svg" alt="Native AOT portability"></a>
+    <a href="https://dotnet.microsoft.com/download/dotnet/10.0"><img src="https://img.shields.io/badge/.NET-10.0-512bd4.svg?logo=dotnet&amp;logoColor=white" alt=".NET 10"></a>
+    <a href="https://fsharp.org/"><img src="https://img.shields.io/badge/F%23-378bba.svg?logo=fsharp&amp;logoColor=white" alt="F#"></a>
+    <a href="https://nixos.org/"><img src="https://img.shields.io/badge/Nix-flake-5277c3.svg?logo=nixos&amp;logoColor=white" alt="Nix flake"></a>
+    <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-7c3aed.svg" alt="MIT license"></a>
+  </p>
+  <p>
+    <a href="https://github.com/alsi-lawr/Viset/wiki">Documentation</a>
+    &nbsp;&middot;&nbsp;
+    <a href="examples">Examples</a>
+    &nbsp;&middot;&nbsp;
+    <a href="benchmarks">Benchmarks</a>
+    &nbsp;&middot;&nbsp;
+    <a href="CONTRIBUTING.md">Contributing</a>
+  </p>
+</div>
 
-Script reproducible browser screenshots and animations from a capture matrix.
+## Quick start
 
-Viset turns one trusted Lua file into one or more PNG screenshots or animated
-WebPs. A strict TOML header describes devices, matrix axes, output paths, and
-media settings; imperative Lua drives the page and decides when to capture.
-
-![An animated WebP produced by Viset](benchmarks/assets/libwebp_anim-1600x900.webp)
-
-> **Status:** Viset is pre-release software. The supported route today is to
-> build or run it from this repository with Nix; release archives and package
-> channels are not published yet.
-
-## What it does
-
-- Expands declared devices and arbitrary TOML matrix axes in deterministic
-  order.
-- Captures still PNGs and continuous, pauseable animated WebPs through Chrome
-  DevTools Protocol.
-- Supports PNG or JPEG screencast input, three WebP encoders, and spooled or
-  bounded live processing without changing the conservative defaults.
-- Runs top-level Lua with page, HTTP, process, emulation, snapshot, and recording
-  APIs.
-- Writes ordinary user-owned files directly; Viset does not create output
-  manifests or ownership metadata.
-
-## Build and run
-
-From a repository checkout on x86_64 Linux, aarch64 Linux, or Apple Silicon
-macOS:
+With [Nix](https://nixos.org/) installed:
 
 ```sh
-nix build
-./result/bin/viset --version
+nix run github:alsi-lawr/Viset -- init demo
+nix run github:alsi-lawr/Viset -- capture demo/capture.lua
 ```
 
-The Nix package supplies the matching browser route. To use another Chrome or
-Chromium executable, set `VISET_BROWSER` or pass `--browser PATH`.
+Open `demo/output/example.png`. That is a complete, self-contained first
+capture; edit `demo/capture.lua` to point it at your page.
 
-Create and run a capture:
+## One file, every capture
 
-```sh
-./result/bin/viset init demo
-./result/bin/viset capture demo/capture.lua
-```
-
-The generated project captures a self-contained page to
-`demo/output/example.png`.
-
-## A capture file
-
-Every capture is a `.lua` file whose first non-whitespace content is a TOML
-header:
+The capture file keeps its configuration and browser actions together:
 
 ```lua
 --[[
@@ -59,86 +43,47 @@ header:
 version = 1
 output = "output/{device}-{theme}.png"
 
-[devices.desktop]
-
 [devices.desktop.viewport]
 width = 1280
 height = 720
 
 [matrix]
 theme = ["light", "dark"]
-
-[data]
-url = "https://example.com"
 ]]
 
-viset.page.navigate(viset.context.data.url)
-viset.page.wait_for("document.readyState === 'complete'", "10s")
+viset.page.navigate("https://example.com")
 viset.snapshot()
 ```
 
-This writes two files for the desktop device, one for each `theme` value. PNG
-captures call `viset.snapshot()` exactly once. WebP captures create exactly one
-recording with `viset.record()` and may show or hide recording with
-`start()`, `stop()`, and `during()`.
+Viset expands the matrix and writes both outputs. The same model supports
+multiple devices, framed captures, and continuous animated WebP recording.
 
-Capture files are trusted, unsandboxed local Lua programs. They run with Lua's
-standard libraries and may start processes or access the network. Do not run an
-untrusted capture file.
+## Built for reproducible capture
 
-## Commands
+- **Single-file intent.** The strict TOML header and trusted Lua actions live in
+  execution order.
+- **Matrix-native output.** Declare devices and axes once; Viset expands them
+  deterministically.
+- **Screenshots and motion.** Capture PNG stills or pauseable animated WebPs.
+- **Direct ownership.** Outputs are ordinary files ready for Git, docs, tests,
+  or publishing.
 
-```text
-viset capture CAPTURE.lua [--output DIR] [--browser PATH] [--force]
-viset init [DIR] [-i|--interactive] [--force]
-viset browser install
-viset --version
-viset --help
-```
+## Explore Viset
 
-`--output DIR` overrides the TOML `output_root`. Existing declared outputs are
-rejected before capture unless `--force` is supplied.
+| | |
+| --- | --- |
+| **[Read the wiki](https://github.com/alsi-lawr/Viset/wiki)** | Install Viset and learn the capture format and Lua API. |
+| **[Try the examples](examples)** | Start small, then explore device and theme matrices. |
+| **[Review the benchmarks](benchmarks)** | See measured capture, encoder, pipeline, and decoder results. |
+| **[Contribute](CONTRIBUTING.md)** | Build, test, format, and propose changes. |
 
-## Examples and reference
+## Status
 
-- [Minimal PNG example](examples/minimal/)
-- [Device and theme matrix with PNG and WebP outputs](examples/medium/)
-- [Capture format reference](docs/capture-format.md)
-- [Trusted Lua API reference](docs/lua-api.md)
-- [Benchmark reports and retained evidence](benchmarks/)
+Viset is pre-release software. The Nix flake is the supported public route
+today; release archives and package-manager channels will follow once they are
+verified.
 
-## Performance boundary
-
-Viset reports acquisition and WebP production metrics for recordings. A strict
-1600x900 60 FPS acquisition P95 at or below 16.67 ms is a future optimisation
-target, not a current guarantee.
-
-The default WebP path remains PNG screencast input, `libwebp_full`, the spooled
-pipeline, lossy quality 75, and method 0. FFmpeg is optional and never bundled.
-
-Full capture smoke is qualified on both supported Linux systems. The Apple
-Silicon package, application, development shell, and locked browser startup are
-qualified, while full Darwin capture remains a deferred investigation.
-
-## Development
-
-Enter the pinned development environment, then use the locked tools:
-
-```sh
-nix develop
-dotnet restore Viset.slnx --locked-mode
-dotnet tool restore
-dotnet build Viset.slnx --configuration Release --no-restore
-dotnet test tests/Viset.Tests/Viset.Tests.fsproj --configuration Release --no-restore
-dotnet fantomas --check src tests benchmarks
-dotnet csharpier check src/Viset.Serialization
-nix fmt -- --check flake.nix
-python3 .config/verify-documentation.py
-```
-
-The full current-system fixture is `acceptance/run.sh`; it requires a selected
-Chrome or Chromium executable and the media tools supplied by `nix develop`.
-
-## License
+Capture files are trusted local programs and are not sandboxed. Read a capture
+before running it.
 
 Viset is available under the [MIT License](LICENSE).

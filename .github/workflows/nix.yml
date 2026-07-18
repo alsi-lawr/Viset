@@ -39,7 +39,7 @@ jobs:
         run: |
           set -o pipefail
           nix flake show --json > flake-show.json
-          python3 acceptance/verify-flake.py \
+          python3 .config/verify-flake.py \
             --inventory flake-show.json \
             --system "${{ matrix.system }}"
 
@@ -54,8 +54,13 @@ jobs:
           test "$(./result/bin/viset --version)" = "viset 0.1.0"
           test "$(nix run ".#apps.${{ matrix.system }}.default" -- --version)" = "viset 0.1.0"
           if [[ "${{ matrix.system }}" == *-linux ]]; then
-            env -u VISET_BROWSER python3 acceptance/smoke-capture.py \
-              ./result/bin/viset --browser-argument=--no-sandbox
+            env -u VISET_BROWSER nix develop ".#devShells.${{ matrix.system }}.default" \
+              --command env \
+                VISET_END_TO_END_BINARY="$PWD/result/bin/viset" \
+                VISET_END_TO_END_BROWSER_ARGUMENTS=--no-sandbox \
+                dotnet test tests/Viset.EndToEnd/Viset.EndToEnd.fsproj \
+                  --configuration Release \
+                  --filter TestCategory=Smoke
           fi
 
       - name: Exercise development shell and formatter
@@ -63,10 +68,15 @@ jobs:
         run: |
           set -euo pipefail
           env -u VISET_BROWSER nix develop ".#devShells.${{ matrix.system }}.default" \
-            --command bash acceptance/verify-dev-shell.sh
+            --command bash .config/verify-dev-shell.sh
           if [[ "${{ matrix.system }}" == "x86_64-linux" ]]; then
             env -u VISET_BROWSER nix develop ".#devShells.${{ matrix.system }}.default" \
               --command bash -c \
-                'dotnet tool restore && dotnet fantomas --check src tests benchmarks && dotnet csharpier check src/Viset.Serialization'
+                'dotnet restore Viset.slnx --locked-mode &&
+                 dotnet tool restore &&
+                 dotnet test tests/Viset.Tests/Viset.Tests.fsproj --configuration Release --no-restore &&
+                 VISET_END_TO_END_BINARY="$PWD/result/bin/viset" VISET_END_TO_END_BROWSER_ARGUMENTS=--no-sandbox dotnet test tests/Viset.EndToEnd/Viset.EndToEnd.fsproj --configuration Release --no-restore &&
+                 dotnet fantomas --check src tests benchmarks &&
+                 dotnet csharpier check src/Viset.Serialization'
           fi
           nix fmt -- --check flake.nix

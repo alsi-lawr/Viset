@@ -62,7 +62,7 @@ jobs:
             2>&1 | tee "publish-${{ matrix.rid }}.log"
 
       - name: Check Native AOT diagnostics
-        run: python acceptance/verify-aot-log.py "publish-${{ matrix.rid }}.log"
+        run: python .config/verify-aot-log.py "publish-${{ matrix.rid }}.log"
 
       - name: Check Native AOT executable
         shell: bash
@@ -71,8 +71,18 @@ jobs:
           test "$("$binary" --version)" = "viset 0.1.0"
           "$binary" --help | grep -Fq "viset capture CAPTURE.lua"
 
+      - name: Check Native AOT sidecars
+        run: >-
+          python .config/verify-native-sidecars.py
+          "src/Viset/bin/Release/net10.0/${{ matrix.rid }}/publish/${{ matrix.executable }}"
+
       - name: Capture smoke
         if: matrix.capture_smoke
-        run: >-
-          python acceptance/smoke-capture.py
-          "src/Viset/bin/Release/net10.0/${{ matrix.rid }}/publish/${{ matrix.executable }}"
+        shell: bash
+        run: |
+          VISET_END_TO_END_BINARY="$PWD/src/Viset/bin/Release/net10.0/${{ matrix.rid }}/publish/${{ matrix.executable }}" \
+          VISET_END_TO_END_BROWSER_ARGUMENTS=--no-sandbox \
+            dotnet test tests/Viset.EndToEnd/Viset.EndToEnd.fsproj \
+              --configuration Release \
+              --no-restore \
+              --filter TestCategory=Smoke

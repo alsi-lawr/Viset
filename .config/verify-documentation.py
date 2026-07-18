@@ -9,7 +9,8 @@ from urllib.parse import unquote, urlsplit
 
 
 LINK = re.compile(r"!?\[[^\]]*\]\(([^)]+)\)")
-PUBLIC_TEXT = ("README.md", "LICENSE", ".editorconfig")
+HTML_LINK = re.compile(r"(?:href|src)=\"([^\"]+)\"")
+PUBLIC_TEXT = ("README.md", "CONTRIBUTING.md", "LICENSE", ".editorconfig")
 
 
 def public_text_files(root: pathlib.Path) -> list[pathlib.Path]:
@@ -20,7 +21,7 @@ def public_text_files(root: pathlib.Path) -> list[pathlib.Path]:
 
 
 def markdown_files(root: pathlib.Path) -> list[pathlib.Path]:
-    files = [root / "README.md"]
+    files = [root / "README.md", root / "CONTRIBUTING.md"]
 
     for directory in ("docs", "benchmarks"):
         files.extend(sorted((root / directory).rglob("*.md")))
@@ -82,8 +83,10 @@ def check_links(
     text = path.read_text(encoding="utf-8")
     errors: list[str] = []
 
-    for match in LINK.finditer(text):
-        destination = match.group(1).strip()
+    destinations = [match.group(1).strip() for match in LINK.finditer(text)]
+    destinations.extend(match.group(1).strip() for match in HTML_LINK.finditer(text))
+
+    for destination in destinations:
         parsed = urlsplit(destination)
 
         if parsed.scheme or destination.startswith("#"):

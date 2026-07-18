@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title description">
+  <title id="title">Viset logo</title>
+  <desc id="description">A four-tile capture matrix inside viewfinder corners, with one tile moving forward.</desc>
+
+  <g fill="none" stroke="#0a2a66" stroke-linecap="round" stroke-linejoin="round" stroke-width="13">
+    <path d="M76 28H46c-10 0-18 8-18 18v30" />
+    <path d="M180 28h30c10 0 18 8 18 18v30" />
+    <path d="M76 228H46c-10 0-18-8-18-18v-30" />
+    <path d="M180 228h30c10 0 18-8 18-18v-30" />
+  </g>
+
+  <g fill="#0a2a66">
+    <rect x="67" y="68" width="53" height="53" rx="11" />
+    <rect x="67" y="131" width="53" height="53" rx="11" />
+    <rect x="130" y="131" width="53" height="53" rx="11" />
+  </g>
+
+  <rect x="130" y="68" width="53" height="53" rx="11" fill="#10c5e8" transform="rotate(4 156.5 94.5)" />
+  <g fill="none" stroke-linecap="round" stroke-width="7">
+    <path d="M193 86h22" stroke="#10c5e8" />
+    <path d="M191 101h25" stroke="#7758e8" />
+    <path d="M193 116h19" stroke="#7758e8" />
+  </g>
+</svg>
