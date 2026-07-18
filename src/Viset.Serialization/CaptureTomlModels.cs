@@ -28,6 +28,11 @@ public static class CaptureTomlModels
             }
         }
 
+        if (model.Webp is not null)
+        {
+            RejectUnmapped(model.Webp.Unmapped, "webp");
+        }
+
         return model;
     }
 
@@ -57,6 +62,8 @@ public sealed class CaptureTomlModel
 
     public long? FramesPerSecond { get; set; }
 
+    public WebpTomlModel? Webp { get; set; }
+
     public List<string> BrowserArguments { get; set; } = [];
 
     [TomlRequired]
@@ -65,6 +72,26 @@ public sealed class CaptureTomlModel
     public TomlTable Matrix { get; set; } = [];
 
     public TomlTable Data { get; set; } = [];
+
+    [TomlExtensionData]
+    public TomlTable Unmapped { get; set; } = [];
+}
+
+public sealed class WebpTomlModel
+{
+    public string Source { get; set; } = string.Empty;
+
+    public long? SourceQuality { get; set; }
+
+    public string Encoder { get; set; } = string.Empty;
+
+    public string Pipeline { get; set; } = string.Empty;
+
+    public string Mode { get; set; } = string.Empty;
+
+    public long? Method { get; set; }
+
+    public double? Quality { get; set; }
 
     [TomlExtensionData]
     public TomlTable Unmapped { get; set; } = [];

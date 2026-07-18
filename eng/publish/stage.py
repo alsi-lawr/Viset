@@ -9,11 +9,11 @@ import tomllib
 
 
 RID_LAYOUTS = {
-    "linux-x64": ("viset", "Magick.Native-Q8-x64.dll.so", "linux"),
-    "linux-arm64": ("viset", "Magick.Native-Q8-arm64.dll.so", "linux"),
-    "osx-arm64": ("viset", "Magick.Native-Q8-arm64.dll.dylib", "macos"),
-    "win-x64": ("viset.exe", "Magick.Native-Q8-x64.dll", "windows"),
-    "win-arm64": ("viset.exe", "Magick.Native-Q8-arm64.dll", "windows"),
+    "linux-x64": ("viset", "linux"),
+    "linux-arm64": ("viset", "linux"),
+    "osx-arm64": ("viset", "macos"),
+    "win-x64": ("viset.exe", "windows"),
+    "win-arm64": ("viset.exe", "windows"),
 }
 
 
@@ -91,14 +91,13 @@ arguments = parser.parse_args()
 root = pathlib.Path(__file__).resolve().parents[2]
 publish_directory = arguments.publish_directory.resolve()
 destination = arguments.destination.resolve()
-executable, magick_sidecar, platform = RID_LAYOUTS[arguments.rid]
+executable, platform = RID_LAYOUTS[arguments.rid]
 
 with (root / "acceptance" / "native-sidecars.toml").open("rb") as stream:
     sidecar_manifest = tomllib.load(stream)
 
 files = [
     (publish_directory / executable, executable),
-    (publish_directory / magick_sidecar, magick_sidecar),
     *[
         (publish_directory / name, name)
         for name in sidecar_manifest["platforms"][platform]["files"]

@@ -1,0 +1,10 @@
+=== spooled ===
+output: <repo>/.agent-workspace/20260718T-webp-expansion/component-spooled
+captures: 1
+webp: animations/laptop-light-home-scroll.webp
+written: <repo>/.agent-workspace/20260718T-webp-expansion/component-spooled/animations/laptop-light-home-scroll.webp
+metrics: <repo>/.agent-workspace/20260718T-webp-expansion/component-spooled/animations/laptop-light-home-scroll.webp source=png_screencast pipeline=spooled frames=89 unique=43 p95_ms=30.19 p99_ms=873.59 max_ms=873.59 missed=46 duplicated=46 dropped=37
+warning: frame acquisition exceeded the 33.33 ms budget for <repo>/.agent-workspace/20260718T-webp-expansion/component-spooled/animations/laptop-light-home-scroll.webp: overruns=2, missed=46, duplicated=46, dropped=37, p95_ms=30.19, p99_ms=873.59, max_ms=873.59
+webp_metrics: <repo>/.agent-workspace/20260718T-webp-expansion/component-spooled/animations/laptop-light-home-scroll.webp encoder=libwebp_full pipeline=spooled frames=89 encoded=43 spilled=0 workers=4 total_ms=1170.77 per_frame_ms=13.15 decode_p95_ms=21.66 encode_p95_ms=86.20 mux_ms=3.02
+warning: WebP frame encoding exceeded the 10 ms p95 ceiling for <repo>/.agent-workspace/20260718T-webp-expansion/component-spooled/animations/laptop-light-home-scroll.webp: p95_ms=86.20, target_ms=5.00
+warning: WebP production throughput exceeded 10 ms per frame for <repo>/.agent-workspace/20260718T-webp-expansion/component-spooled/animations/laptop-light-home-scroll.webp: per_frame_ms=13.15, target_ms=5.00

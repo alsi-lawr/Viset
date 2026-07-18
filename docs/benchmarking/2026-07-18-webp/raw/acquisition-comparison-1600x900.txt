@@ -1,0 +1,7 @@
+backend           fps target unique duplicate dropped p95_ms p99_ms max_ms target_15ms
+captureScreenshot  30     90     23        67       0 106.15 111.65 111.65 fail
+png_screencast     30     90    131         0      41  40.08  43.38  85.02 fail
+jpeg_screencast    30     90    180         0      90  18.34  20.32  42.80 fail
+captureScreenshot  60    180     23       157       0 128.98 132.56 132.56 fail
+png_screencast     60    180    135        45       0  40.41  45.83  68.55 fail
+jpeg_screencast    60    180    181         0       1  18.40  19.33  24.81 fail

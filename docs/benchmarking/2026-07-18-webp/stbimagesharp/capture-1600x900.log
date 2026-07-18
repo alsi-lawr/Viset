@@ -1,0 +1,10 @@
+=== stbimagesharp ===
+output: <repo>/.agent-workspace/20260718T-webp-expansion/component-stbimagesharp
+captures: 1
+webp: animations/laptop-light-home-scroll.webp
+written: <repo>/.agent-workspace/20260718T-webp-expansion/component-stbimagesharp/animations/laptop-light-home-scroll.webp
+metrics: <repo>/.agent-workspace/20260718T-webp-expansion/component-stbimagesharp/animations/laptop-light-home-scroll.webp source=png_screencast pipeline=spooled frames=90 unique=43 p95_ms=28.65 p99_ms=876.69 max_ms=876.69 missed=47 duplicated=47 dropped=37
+warning: frame acquisition exceeded the 33.33 ms budget for <repo>/.agent-workspace/20260718T-webp-expansion/component-stbimagesharp/animations/laptop-light-home-scroll.webp: overruns=2, missed=47, duplicated=47, dropped=37, p95_ms=28.65, p99_ms=876.69, max_ms=876.69
+webp_metrics: <repo>/.agent-workspace/20260718T-webp-expansion/component-stbimagesharp/animations/laptop-light-home-scroll.webp encoder=libwebp_full pipeline=spooled frames=90 encoded=43 spilled=0 workers=4 total_ms=1249.99 per_frame_ms=13.89 decode_p95_ms=22.64 encode_p95_ms=95.05 mux_ms=3.20
+warning: WebP frame encoding exceeded the 10 ms p95 ceiling for <repo>/.agent-workspace/20260718T-webp-expansion/component-stbimagesharp/animations/laptop-light-home-scroll.webp: p95_ms=95.05, target_ms=5.00
+warning: WebP production throughput exceeded 10 ms per frame for <repo>/.agent-workspace/20260718T-webp-expansion/component-stbimagesharp/animations/laptop-light-home-scroll.webp: per_frame_ms=13.89, target_ms=5.00

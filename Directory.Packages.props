@@ -10,6 +10,7 @@
     <PackageVersion Include="Imazen.WebP.NativeRuntime.All" Version="1.6.1" />
     <PackageVersion Include="LuaCSharp" Version="0.5.5" />
     <PackageVersion Include="Magick.NET-Q8-AnyCPU" Version="14.15.0" />
+    <PackageVersion Include="StbImageSharp" Version="2.30.15" />
     <PackageVersion Include="Tomlyn" Version="2.10.1" />
   </ItemGroup>
 </Project>

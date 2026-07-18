@@ -180,8 +180,11 @@
             packages = [
               pkgs.clang
               dotnetPkgs.dotnet-sdk_10
+              pkgs.ffmpeg
+              pkgs.libwebp
               pkgs.lua-language-server
               pkgs.nixfmt
+              pkgs.pkg-config
               pkgs.python3
               pkgs.tree-sitter
               pkgs.zlib

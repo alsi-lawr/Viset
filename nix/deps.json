@@ -60,16 +60,6 @@
     "hash": "sha256-yuu+EgnAm1htF45Zxk5Eb0dwpvCTSf4atSJbb3Bage8="
   },
   {
-    "pname": "Magick.NET-Q8-AnyCPU",
-    "version": "14.15.0",
-    "hash": "sha256-rzsySipyIu0sqGbRywGUoPly04ZkgWu1WHYJLdz/R8M="
-  },
-  {
-    "pname": "Magick.NET.Core",
-    "version": "14.15.0",
-    "hash": "sha256-ekZGCFewYrB7zzarJ4N51F+B+4xyPUXULc8EuNMu8y0="
-  },
-  {
     "pname": "Microsoft.AspNetCore.App.Runtime.linux-arm64",
     "version": "10.0.9",
     "hash": "sha256-yOcjV2sWj0BE8GAd1Euxdz9Rr3L1Y20GezEPpOFYkVo="
@@ -203,6 +193,11 @@
     "pname": "runtime.win-x64.Microsoft.DotNet.ILCompiler",
     "version": "10.0.9",
     "hash": "sha256-79NQ/Sab8g7SRNJHGASO5VySu5Mu6pkUiJHNglu+bT4="
+  },
+  {
+    "pname": "StbImageSharp",
+    "version": "2.30.15",
+    "hash": "sha256-Wvc6uAKOsOx3D2/P3PKDs2KdogRNOBzXli/fwNv15E4="
   },
   {
     "pname": "Tomlyn",

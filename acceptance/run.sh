@@ -8,6 +8,8 @@ output="$work/output"
 rm -rf "$work"
 mkdir -p "$work"
 
+dotnet fsi --exec "$root/acceptance/verify-functional-core.fsx"
+
 if [[ ${1:-} == "--publish-current" ]]; then
   rid=${2:-linux-x64}
   binary="$root/src/Viset/bin/Release/net10.0/$rid/publish/viset"
@@ -63,6 +65,97 @@ if "$binary" capture "$work/unknown-property.lua" > "$work/unknown-property.log"
   exit 1
 fi
 grep -Fq "Unknown TOML property 'capture.mystery_option'." "$work/unknown-property.log"
+
+cat > "$work/invalid-webp-method.lua" <<'LUA'
+--[[
+# viset
+version = 1
+output = "capture.webp"
+
+[webp]
+method = 7
+
+[devices.desktop]
+
+[devices.desktop.viewport]
+width = 320
+height = 240
+]]
+
+local recording = viset.record()
+recording:start()
+recording:during("100ms")
+recording:stop()
+LUA
+
+if "$binary" capture "$work/invalid-webp-method.lua" > "$work/invalid-webp-method.log" 2>&1; then
+  printf 'capture with invalid webp.method unexpectedly succeeded\n' >&2
+  exit 1
+fi
+grep -Fq 'webp.method must be between 0 and 6.' "$work/invalid-webp-method.log"
+
+"$python" - "$work" <<'PY'
+import pathlib
+import sys
+
+root = pathlib.Path(sys.argv[1])
+cases = {
+    "invalid-webp-source": 'source = "browser_webp"',
+    "invalid-webp-source-quality": 'source_quality = 95',
+    "invalid-webp-encoder": 'encoder = "libwebp"',
+    "invalid-webp-pipeline": 'pipeline = "streaming"',
+    "invalid-webp-mode": 'mode = "near_lossless"',
+    "invalid-webp-quality": 'quality = 101',
+    "removed-webp-lossless": 'lossless = true',
+}
+template = '''--[[
+# viset
+version = 1
+output = "capture.webp"
+
+[webp]
+{configuration}
+
+[devices.desktop]
+
+[devices.desktop.viewport]
+width = 320
+height = 240
+]]
+
+local recording = viset.record()
+recording:start()
+recording:during("100ms")
+recording:stop()
+'''
+for name, configuration in cases.items():
+    (root / f"{name}.lua").write_text(template.format(configuration=configuration))
+PY
+
+while IFS='|' read -r name expected; do
+  if "$binary" capture "$work/$name.lua" > "$work/$name.log" 2>&1; then
+    printf 'capture with %s unexpectedly succeeded\n' "$name" >&2
+    exit 1
+  fi
+  grep -Fq "$expected" "$work/$name.log"
+done <<'CASES'
+invalid-webp-source|Unknown webp.source 'browser_webp'; expected png_screencast or jpeg_screencast.
+invalid-webp-source-quality|webp.source_quality is valid only when webp.source = 'jpeg_screencast'.
+invalid-webp-encoder|Unknown webp.encoder 'libwebp'; expected libwebp_full, libwebp_anim, or ffmpeg.
+invalid-webp-pipeline|Unknown webp.pipeline 'streaming'; expected spooled or live.
+invalid-webp-mode|Unknown webp.mode 'near_lossless'; expected lossy or lossless.
+invalid-webp-quality|webp.quality must be a finite number between 0 and 100.
+removed-webp-lossless|Unknown TOML property 'webp.lossless'.
+CASES
+
+mkdir -p "$work/no-ffmpeg-path"
+if PATH="$work/no-ffmpeg-path" \
+  "$binary" capture "$root/acceptance/animation-ffmpeg.lua" \
+    > "$work/missing-ffmpeg.log" 2>&1; then
+  printf 'ffmpeg capture unexpectedly passed without ffmpeg on PATH\n' >&2
+  exit 1
+fi
+grep -Fq "webp.encoder = 'ffmpeg' requires ffmpeg" "$work/missing-ffmpeg.log"
 
 cat > "$work/redundant-device-axis.lua" <<'LUA'
 --[[
@@ -139,9 +232,25 @@ run_capture() {
 run_capture "$root/acceptance/stills.lua" "$output"
 run_capture "$root/acceptance/animation.lua" "$output"
 
+anim_output="$work/libwebp-anim-output"
+run_capture "$root/acceptance/animation-libwebp-anim.lua" "$anim_output"
+
+ffmpeg_output="$work/ffmpeg-output"
+run_capture "$root/acceptance/animation-ffmpeg.lua" "$ffmpeg_output"
+
+coalescing_output="$work/coalescing-output"
+run_capture "$root/acceptance/coalescing.lua" "$coalescing_output" \
+  2>&1 | tee "$work/coalescing.log"
+grep -Eq 'webp_metrics: .* frames=12 encoded=2 ' "$work/coalescing.log"
+
+live_output="$work/live-output"
+run_capture "$root/acceptance/animation-live-spill.lua" "$live_output" \
+  2>&1 | tee "$work/live-spill.log"
+grep -Eq 'webp_metrics: .* pipeline=live .* spilled=[1-9][0-9]* ' "$work/live-spill.log"
+
 "$python" "$root/acceptance/verify-output.py" \
   "$output" \
-  --fps 60 \
+  --expected-animation-duration-ms 400 \
   --max-animation-duration-ms 800 \
   --media-size screenshots/red.png=400x300 \
   --media-size screenshots/blue.png=400x300 \
@@ -149,18 +258,36 @@ run_capture "$root/acceptance/animation.lua" "$output"
   screenshots/blue.png \
   animations/motion.webp
 
+"$python" "$root/acceptance/verify-output.py" \
+  "$anim_output" \
+  --expected-animation-duration-ms 400 \
+  --media-size animations/motion-libwebp-anim.webp=400x300 \
+  animations/motion-libwebp-anim.webp
+
+"$python" "$root/acceptance/verify-output.py" \
+  "$ffmpeg_output" \
+  --expected-animation-duration-ms 400 \
+  --max-animation-duration-ms 800 \
+  --media-size animations/motion.webp=400x300 \
+  animations/motion.webp
+
+"$python" "$root/acceptance/verify-output.py" \
+  "$coalescing_output" \
+  --expected-animation-duration-ms 400 \
+  --max-animation-frames 2 \
+  --media-size animations/coalesced.webp=320x240 \
+  animations/coalesced.webp
+
+"$python" "$root/acceptance/verify-output.py" \
+  "$live_output" \
+  --expected-animation-duration-ms 400 \
+  --media-size animations/live-spill.webp=1600x900 \
+  animations/live-spill.webp
+
 [[ "$(sha256sum "$output/screenshots/red.png" | cut -d' ' -f1)" != \
    "$(sha256sum "$output/screenshots/blue.png" | cut -d' ' -f1)" ]]
 [[ ! -e "$output/.viset" ]]
 [[ ! -e "$output/manifest.toml" ]]
-
-managed_dir="$root/src/Viset/bin/Release/net10.0"
-rid_dir="$managed_dir/linux-x64"
-LD_LIBRARY_PATH="$rid_dir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
-  dotnet fsi \
-    --reference:"$managed_dir/Magick.NET.Core.dll" \
-    --reference:"$managed_dir/Magick.NET-Q8-AnyCPU.dll" \
-    "$root/acceptance/verify-media.fsx" "$output"
 
 if run_capture "$root/acceptance/stills.lua" "$output"; then
   printf 'existing output unexpectedly succeeded without --force\n' >&2
@@ -182,6 +309,20 @@ fi
 assert_port_closed "$failure_port"
 [[ ! -e "$failure_output/animations/motion.webp" ]]
 
+active_failure_output="$work/active-failure-output"
+active_failure_port=$(free_port)
+if VISET_BROWSER="$browser" \
+  VISET_PYTHON="$python" \
+  VISET_FIXTURE_PORT="$active_failure_port" \
+  VISET_FIXTURE_ROOT="$root/acceptance" \
+  VISET_FIXTURE_FAIL_ACTIVE=1 \
+    "$binary" capture "$root/acceptance/animation.lua" --output "$active_failure_output"; then
+  printf 'forced active recording failure unexpectedly succeeded\n' >&2
+  exit 1
+fi
+assert_port_closed "$active_failure_port"
+[[ ! -e "$active_failure_output/animations/motion.webp" ]]
+
 init_project="$work/init-project"
 "$binary" init "$init_project"
 [[ -f "$init_project/capture.lua" ]]
@@ -192,7 +333,7 @@ init_project="$work/init-project"
 grep -q '^/output/$' "$init_project/.gitignore"
 grep -Fq '"runtime.version": "Lua 5.2"' "$init_project/.luarc.json"
 grep -Fq -- '---@class VisetApi' "$init_project/.viset/viset.d.lua"
-grep -Fq 'viset.javascript' "$init_project/.viset/nvim/queries/lua/injections.scm"
+grep -Fq '@_javascript "javascript"' "$init_project/.viset/nvim/queries/lua/injections.scm"
 grep -Fq 'injection.language "toml"' "$init_project/.viset/nvim/queries/lua/injections.scm"
 VISET_BROWSER="$browser" "$binary" capture "$init_project/capture.lua"
 [[ -f "$init_project/output/example.png" ]]

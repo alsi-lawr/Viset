@@ -14,6 +14,7 @@
 
   <ItemGroup>
     <Compile Include="Domain.fs" />
+    <Compile Include="PerformanceMetrics.fs" />
     <Compile Include="BuiltInFrames.fs" />
     <Compile Include="Cli.fs" />
     <Compile Include="EditorSupport.fs" />
@@ -23,9 +24,24 @@
     <Compile Include="BrowserSession.fs" />
     <Compile Include="BrowserResolution.fs" />
     <Compile Include="BrowserInstall.fs" />
+    <Compile Include="MediaTypes.fs" />
+    <Compile Include="WebPNative.fs" />
+    <Compile Include="ImageDecoder.fs" />
+    <Compile Include="WebPEncoding.fs" />
+    <Compile Include="WebPContainer.fs" />
+    <Compile Include="FrameCoalescing.fs" />
+    <Compile Include="LibWebPFullEncoder.fs" />
+    <Compile Include="LibWebPAnimEncoder.fs" />
+    <Compile Include="FfmpegWebPEncoder.fs" />
     <Compile Include="Media.fs" />
     <Compile Include="Frame.fs" />
     <Compile Include="Capture.fs" />
+    <Compile Include="ScreencastFrameSource.fs" />
+    <Compile Include="RecordingPipeline.fs" />
+    <Compile Include="SpooledFramePipeline.fs" />
+    <Compile Include="LiveFramePipeline.fs" />
+    <Compile Include="RecordingState.fs" />
+    <Compile Include="RecordingTimeline.fs" />
     <Compile Include="Recording.fs" />
     <Compile Include="Output.fs" />
     <Compile Include="LuaHost.fs" />
@@ -35,8 +51,8 @@
   <ItemGroup>
     <PackageReference Include="FSharp.Core" />
     <PackageReference Include="Imazen.WebP.NativeRuntime.All" />
+    <PackageReference Include="StbImageSharp" />
     <ProjectReference Include="../Viset.Serialization/Viset.Serialization.csproj" />
     <PackageReference Include="LuaCSharp" />
-    <PackageReference Include="Magick.NET-Q8-AnyCPU" />
   </ItemGroup>
 </Project>

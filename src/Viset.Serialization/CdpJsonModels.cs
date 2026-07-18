@@ -255,6 +255,8 @@ public sealed class CdpScreencastParameters
 {
     public string Format { get; set; } = "png";
 
+    public int? Quality { get; set; }
+
     public int? MaxWidth { get; set; }
 
     public int? MaxHeight { get; set; }

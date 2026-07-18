@@ -15,14 +15,15 @@ open BenchmarkDotNet.Jobs
 open BenchmarkDotNet.Running
 open BenchmarkDotNet.Toolchains.NativeAot
 open ImageMagick
+open StbImageSharp
 open Viset
 
 module private BrowserFixture =
     [<Literal>]
-    let Width = 1180
+    let Width = 1600
 
     [<Literal>]
-    let Height = 720
+    let Height = 900
 
     let private html =
         """<!doctype html><html><head><meta charset="utf-8"><style>
@@ -147,14 +148,30 @@ type ScreenshotBenchmarks() =
 
 [<MemoryDiagnoser>]
 [<Config(typeof<CaptureBenchmarkConfig>)>]
-type ScreencastBenchmarks() =
+type ScreencastBenchmarks() as this =
     let mutable session: BrowserSession option = None
+
+    [<Params("png_screencast", "jpeg_screencast")>]
+    member val Source = "png_screencast" with get, set
 
     [<GlobalSetup>]
     member _.Setup() =
         task {
             let! launched = BrowserFixture.launchAsync ()
-            do! launched.StartScreencastAsync(BrowserFixture.Width, BrowserFixture.Height, CancellationToken.None)
+
+            let source =
+                match this.Source with
+                | "png_screencast" -> PngScreencast
+                | "jpeg_screencast" -> JpegScreencast 95
+                | value -> invalidOp (String.Concat("Unsupported benchmark source: ", value))
+
+            do!
+                launched.StartScreencastAsync(
+                    source,
+                    BrowserFixture.Width,
+                    BrowserFixture.Height,
+                    CancellationToken.None
+                )
 
             session <- Some launched
         }
@@ -196,26 +213,39 @@ type WebPEncodingBenchmarkConfig() as this =
 [<MemoryDiagnoser>]
 [<Config(typeof<WebPEncodingBenchmarkConfig>)>]
 type WebPEncodingBenchmarks() =
-    let mutable frames: byte array list = []
+    [<Literal>]
+    let Width = 1600
+
+    [<Literal>]
+    let Height = 900
+
+    [<Literal>]
+    let FrameCount = 12
+
+    let mutable pngFrames: byte array array = Array.empty
+    let mutable jpegFrames: byte array array = Array.empty
+    let mutable ffmpegPath = String.Empty
 
     let createFrame index =
-        let width = 640
-        let height = 360
-        let rgba = Array.zeroCreate<byte> (width * height * 4)
-        let movingPanelLeft = 72 + index * 19
+        let rgba = Array.zeroCreate<byte> (Width * Height * 4)
+        let movingPanelLeft = 180 + index * 31
 
-        for y in 0 .. height - 1 do
-            for x in 0 .. width - 1 do
-                let offset = (y * width + x) * 4
-                let isHeader = y < 64
-                let isCard = x >= 48 && x < 592 && y >= 92 && y < 324
+        for y in 0 .. Height - 1 do
+            for x in 0 .. Width - 1 do
+                let offset = (y * Width + x) * 4
+                let isHeader = y < 110
+                let isCard = x >= 90 && x < 1510 && y >= 155 && y < 825
 
                 let isMovingPanel =
-                    x >= movingPanelLeft && x < movingPanelLeft + 120 && y >= 132 && y < 284
+                    x >= movingPanelLeft && x < movingPanelLeft + 310 && y >= 260 && y < 710
+
+                let isText = isCard && y % 62 < 8 && x % 410 > 30 && x % 410 < 330
 
                 let red, green, blue =
                     if isMovingPanel then
                         37 + index * 3, 99 + x % 31, 235 - index * 4
+                    elif isText then
+                        32, 42, 62
                     elif isCard then
                         232 - y % 17, 238 - x % 13, 248
                     elif isHeader then
@@ -224,31 +254,44 @@ type WebPEncodingBenchmarks() =
                         242 - x % 11, 246 - y % 9, 252 - index
 
                 let isTransparentCorner =
-                    (x < 28 || x >= width - 28) && (y < 28 || y >= height - 28)
+                    (x < 40 || x >= Width - 40) && (y < 40 || y >= Height - 40)
 
                 rgba[offset] <- byte red
                 rgba[offset + 1] <- byte green
                 rgba[offset + 2] <- byte blue
                 rgba[offset + 3] <- if isTransparentCorner then 0uy else 255uy
 
-        use image = new MagickImage(MagickColors.Transparent, uint width, uint height)
+        use image = new MagickImage(MagickColors.Transparent, uint Width, uint Height)
 
         let settings =
-            PixelImportSettings(uint width, uint height, StorageType.Char, PixelMapping.RGBA)
+            PixelImportSettings(uint Width, uint Height, StorageType.Char, PixelMapping.RGBA)
 
         image.ImportPixels(rgba, settings)
         image.Format <- MagickFormat.Png
-        image.ToByteArray()
+        let png = image.ToByteArray()
+        image.Format <- MagickFormat.Jpeg
+        image.Quality <- 95u
+        png, image.ToByteArray()
 
-    [<GlobalSetup>]
-    member _.Setup() =
-        frames <- [ for index in 0..11 -> createFrame index ]
+    let findFfmpeg () =
+        let executable =
+            if OperatingSystem.IsWindows() then
+                "ffmpeg.exe"
+            else
+                "ffmpeg"
 
-    [<Benchmark(Baseline = true)>]
-    member _.DecodeTwelvePngFrames() =
+        Environment.GetEnvironmentVariable "PATH"
+        |> Option.ofObj
+        |> Option.defaultValue String.Empty
+        |> fun path -> path.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
+        |> Array.map (fun directory -> Path.Combine(directory, executable))
+        |> Array.tryFind File.Exists
+        |> Option.defaultWith (fun () -> invalidOp "The FFmpeg benchmark requires ffmpeg on PATH.")
+
+    let decode (format: MagickFormat) (frames: byte array array) =
         frames
-        |> List.sumBy (fun bytes ->
-            use image = new MagickImage(bytes, MagickFormat.Png)
+        |> Array.sumBy (fun bytes ->
+            use image = new MagickImage(bytes, format)
             image.Alpha AlphaOption.On
             use pixels = image.GetPixels()
 
@@ -257,9 +300,53 @@ type WebPEncodingBenchmarks() =
             |> Option.defaultWith (fun () -> invalidOp "ImageMagick returned no RGBA benchmark data.")
             |> Array.length)
 
-    [<Benchmark>]
-    member _.EncodeTwelveFrames() =
-        Media.encodeAnimatedWebP 60 frames |> fun animation -> animation.Bytes.Length
+    let decodeStb (frames: byte array array) =
+        frames
+        |> Array.sumBy (fun bytes ->
+            let image = ImageResult.FromMemory(bytes, ColorComponents.RedGreenBlueAlpha)
+            image.Data.Length)
+
+    let encode encoder (format: CompressedImageFormat) (frames: byte array array) =
+        let options =
+            { WebPOptions.Default with
+                Encoder = encoder }
+
+        let readFrame index _ =
+            Task.FromResult
+                { Format = format
+                  Bytes = frames[index] }
+
+        Media.encodeAnimatedWebPAsync options 60 frames.Length readFrame 0 CancellationToken.None
+        |> fun work -> work.GetAwaiter().GetResult().Bytes.Length
+
+    [<GlobalSetup>]
+    member _.Setup() =
+        let frames = [| for index in 0 .. FrameCount - 1 -> createFrame index |]
+        pngFrames <- frames |> Array.map fst
+        jpegFrames <- frames |> Array.map snd
+        ffmpegPath <- findFfmpeg ()
+
+    [<Benchmark(Baseline = true, OperationsPerInvoke = 12)>]
+    member _.DecodeTwelvePngFramesWithImageMagick() = decode MagickFormat.Png pngFrames
+
+    [<Benchmark(OperationsPerInvoke = 12)>]
+    member _.DecodeTwelveJpegFramesWithImageMagick() = decode MagickFormat.Jpeg jpegFrames
+
+    [<Benchmark(OperationsPerInvoke = 12)>]
+    member _.DecodeTwelvePngFramesWithStb() = decodeStb pngFrames
+
+    [<Benchmark(OperationsPerInvoke = 12)>]
+    member _.DecodeTwelveJpegFramesWithStb() = decodeStb jpegFrames
+
+    [<Benchmark(OperationsPerInvoke = 12)>]
+    member _.EncodeTwelvePngFramesWithLibWebPFull() = encode LibWebPFull PngImage pngFrames
+
+    [<Benchmark(OperationsPerInvoke = 12)>]
+    member _.EncodeTwelvePngFramesWithLibWebPAnim() = encode LibWebPAnim PngImage pngFrames
+
+    [<Benchmark(OperationsPerInvoke = 12)>]
+    member _.EncodeTwelvePngFramesWithFfmpeg() =
+        encode (Ffmpeg ffmpegPath) PngImage pngFrames
 
 type private ComparisonResult =
     { Backend: string
@@ -331,12 +418,18 @@ module private Comparison =
                 BrowserFixture.disposeAsync browser |> fun work -> work.GetAwaiter().GetResult()
         }
 
-    let private screencastAsync fps duration =
+    let private screencastAsync source fps duration =
         task {
             let! browser = BrowserFixture.launchAsync ()
 
             try
-                do! browser.StartScreencastAsync(BrowserFixture.Width, BrowserFixture.Height, CancellationToken.None)
+                do!
+                    browser.StartScreencastAsync(
+                        source,
+                        BrowserFixture.Width,
+                        BrowserFixture.Height,
+                        CancellationToken.None
+                    )
 
                 let stopwatch = Stopwatch.StartNew()
                 let waits = ResizeArray<TimeSpan>()
@@ -355,7 +448,7 @@ module private Comparison =
                 let target =
                     int (Math.Round(duration.TotalSeconds * double fps, MidpointRounding.AwayFromZero))
 
-                return result "startScreencast" fps target uniqueFrames (List.ofSeq waits)
+                return result (source.ToString()) fps target uniqueFrames (List.ofSeq waits)
             finally
                 BrowserFixture.disposeAsync browser |> fun work -> work.GetAwaiter().GetResult()
         }
@@ -368,8 +461,10 @@ module private Comparison =
             for fps in [ 30; 60 ] do
                 let! screenshot = screenshotAsync fps duration
                 results.Add screenshot
-                let! screencast = screencastAsync fps duration
-                results.Add screencast
+
+                for source in [ PngScreencast; JpegScreencast 95 ] do
+                    let! screencast = screencastAsync source fps duration
+                    results.Add screencast
 
             Console.Out.WriteLine(
                 "backend           fps target unique duplicate dropped p95_ms p99_ms max_ms target_15ms"

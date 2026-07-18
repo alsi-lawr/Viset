@@ -29,6 +29,79 @@ module Program =
 
             sorted[index]
 
+    let private writeWebPPerformance (output: CaptureOutputResult) =
+        match output.WebPPerformance with
+        | None -> ()
+        | Some metrics ->
+            let perFrame =
+                metrics.TotalDuration.TotalMilliseconds / double (max 1 metrics.FrameCount)
+
+            let decodeP95 = percentile 0.95 metrics.DecodeDurations
+            let encodeP95 = percentile 0.95 metrics.EncodeDurations
+
+            let decodeP95Text =
+                if List.isEmpty metrics.DecodeDurations then
+                    "n/a"
+                else
+                    decodeP95.TotalMilliseconds.ToString("0.00", CultureInfo.InvariantCulture)
+
+            let encodeP95Text =
+                if List.isEmpty metrics.EncodeDurations then
+                    "n/a"
+                else
+                    encodeP95.TotalMilliseconds.ToString("0.00", CultureInfo.InvariantCulture)
+
+            Console.Out.WriteLine(
+                String.Concat(
+                    "webp_metrics: ",
+                    output.Path,
+                    " encoder=",
+                    metrics.Encoder.ToString(),
+                    " pipeline=",
+                    metrics.Pipeline.ToString(),
+                    " frames=",
+                    metrics.FrameCount.ToString(CultureInfo.InvariantCulture),
+                    " encoded=",
+                    metrics.EncodedFrameCount.ToString(CultureInfo.InvariantCulture),
+                    " spilled=",
+                    metrics.SpilledFrameCount.ToString(CultureInfo.InvariantCulture),
+                    " workers=",
+                    metrics.WorkerCount.ToString(CultureInfo.InvariantCulture),
+                    " total_ms=",
+                    metrics.TotalDuration.TotalMilliseconds.ToString("0.00", CultureInfo.InvariantCulture),
+                    " per_frame_ms=",
+                    perFrame.ToString("0.00", CultureInfo.InvariantCulture),
+                    " decode_p95_ms=",
+                    decodeP95Text,
+                    " encode_p95_ms=",
+                    encodeP95Text,
+                    " mux_ms=",
+                    metrics.MuxDuration.TotalMilliseconds.ToString("0.00", CultureInfo.InvariantCulture)
+                )
+            )
+
+            if not (List.isEmpty metrics.EncodeDurations) && encodeP95.TotalMilliseconds > 10.0 then
+                Console.Error.WriteLine(
+                    String.Concat(
+                        "warning: WebP frame encoding exceeded the 10 ms p95 ceiling for ",
+                        output.Path,
+                        ": p95_ms=",
+                        encodeP95.TotalMilliseconds.ToString("0.00", CultureInfo.InvariantCulture),
+                        ", target_ms=10.00"
+                    )
+                )
+
+            if perFrame > 5.0 then
+                Console.Error.WriteLine(
+                    String.Concat(
+                        "warning: WebP production throughput exceeded 5 ms per frame for ",
+                        output.Path,
+                        ": per_frame_ms=",
+                        perFrame.ToString("0.00", CultureInfo.InvariantCulture),
+                        ", target_ms=5.00"
+                    )
+                )
+
     let private writePerformance framesPerSecond (output: CaptureOutputResult) =
         match output.Performance with
         | None -> ()
@@ -41,8 +114,10 @@ module Program =
                 String.Concat(
                     "metrics: ",
                     output.Path,
-                    " backend=",
-                    metrics.Backend.ToString(),
+                    " source=",
+                    metrics.Source.ToString(),
+                    " pipeline=",
+                    metrics.Pipeline.ToString(),
                     " frames=",
                     metrics.FrameCount.ToString(CultureInfo.InvariantCulture),
                     " unique=",
@@ -172,6 +247,7 @@ module Program =
                     for output in result.Outputs do
                         Console.Out.WriteLine(String.Concat("written: ", output.Path))
                         writePerformance plan.FramesPerSecond output
+                        writeWebPPerformance output
 
                     0
                 with

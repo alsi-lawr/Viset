@@ -1,0 +1,143 @@
+// Validating benchmarks:
+// ***** BenchmarkRunner: Start   *****
+// ***** Found 1 benchmark(s) in total *****
+// ***** Building 1 exe(s) in Parallel: Start   *****
+// start dotnet  restore --nodeReuse:false /p:UseSharedCompilation=false /p:Deterministic=true /p:Optimize=true /p:ArtifactsPath="<repo>/benchmarks/Viset.Benchmarks/bin/Release/net10.0/Viset.Benchmarks-DefaultJob-1/" /p:OutDir="<repo>/benchmarks/Viset.Benchmarks/bin/Release/net10.0/Viset.Benchmarks-DefaultJob-1/bin/Release/net10.0/" /p:OutputPath="<repo>/benchmarks/Viset.Benchmarks/bin/Release/net10.0/Viset.Benchmarks-DefaultJob-1/bin/Release/net10.0/" /p:PublishDir="<repo>/benchmarks/Viset.Benchmarks/bin/Release/net10.0/Viset.Benchmarks-DefaultJob-1/publish/" in <repo>/benchmarks/Viset.Benchmarks/bin/Release/net10.0/Viset.Benchmarks-DefaultJob-1
+// command took 1.28 sec and exited with 0
+// start dotnet  build -c Release --no-restore --nodeReuse:false /p:UseSharedCompilation=false /p:Deterministic=true /p:Optimize=true /p:ArtifactsPath="<repo>/benchmarks/Viset.Benchmarks/bin/Release/net10.0/Viset.Benchmarks-DefaultJob-1/" /p:OutDir="<repo>/benchmarks/Viset.Benchmarks/bin/Release/net10.0/Viset.Benchmarks-DefaultJob-1/bin/Release/net10.0/" /p:OutputPath="<repo>/benchmarks/Viset.Benchmarks/bin/Release/net10.0/Viset.Benchmarks-DefaultJob-1/bin/Release/net10.0/" /p:PublishDir="<repo>/benchmarks/Viset.Benchmarks/bin/Release/net10.0/Viset.Benchmarks-DefaultJob-1/publish/" --output "<repo>/benchmarks/Viset.Benchmarks/bin/Release/net10.0/Viset.Benchmarks-DefaultJob-1/bin/Release/net10.0/" in <repo>/benchmarks/Viset.Benchmarks/bin/Release/net10.0/Viset.Benchmarks-DefaultJob-1
+// command took 15.55 sec and exited with 0
+// ***** Done, took 00:00:16 (16.89 sec)   *****
+// Found 1 benchmarks:
+//   WebPEncodingBenchmarks.EncodeTwelveFrames: DefaultJob
+
+// **************************
+// Benchmark: WebPEncodingBenchmarks.EncodeTwelveFrames: DefaultJob
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Viset.Benchmarks-DefaultJob-1.dll --anonymousPipes 124 125 --benchmarkName Viset.Benchmarks.WebPEncodingBenchmarks.EncodeTwelveFrames --job Default --benchmarkId 0 in <repo>/benchmarks/Viset.Benchmarks/bin/Release/net10.0/Viset.Benchmarks-DefaultJob-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.9 (10.0.9, 10.0.926.27113), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: DefaultJob
+
+OverheadJitting  1: 1 op, 202131.00 ns, 202.1310 us/op
+WorkloadJitting  1: 1 op, 4202192276.00 ns, 4.2022 s/op
+
+OverheadJitting  2: 1 op, 311.00 ns, 311.0000 ns/op
+WorkloadJitting  2: 1 op, 3929616261.00 ns, 3.9296 s/op
+
+WorkloadWarmup   1: 1 op, 3984353518.00 ns, 3.9844 s/op
+WorkloadWarmup   2: 1 op, 4075602834.00 ns, 4.0756 s/op
+WorkloadWarmup   3: 1 op, 3884840970.00 ns, 3.8848 s/op
+WorkloadWarmup   4: 1 op, 3937289343.00 ns, 3.9373 s/op
+WorkloadWarmup   5: 1 op, 3942047308.00 ns, 3.9420 s/op
+WorkloadWarmup   6: 1 op, 3944285406.00 ns, 3.9443 s/op
+WorkloadWarmup   7: 1 op, 3938552904.00 ns, 3.9386 s/op
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 3969996099.00 ns, 3.9700 s/op
+WorkloadActual   2: 1 op, 4497357033.00 ns, 4.4974 s/op
+WorkloadActual   3: 1 op, 4078842405.00 ns, 4.0788 s/op
+WorkloadActual   4: 1 op, 4055923946.00 ns, 4.0559 s/op
+WorkloadActual   5: 1 op, 4045882543.00 ns, 4.0459 s/op
+WorkloadActual   6: 1 op, 3954437474.00 ns, 3.9544 s/op
+WorkloadActual   7: 1 op, 3911602643.00 ns, 3.9116 s/op
+WorkloadActual   8: 1 op, 3922869507.00 ns, 3.9229 s/op
+WorkloadActual   9: 1 op, 4003195553.00 ns, 4.0032 s/op
+WorkloadActual  10: 1 op, 3971270108.00 ns, 3.9713 s/op
+WorkloadActual  11: 1 op, 3952511610.00 ns, 3.9525 s/op
+WorkloadActual  12: 1 op, 3950351566.00 ns, 3.9504 s/op
+WorkloadActual  13: 1 op, 3920292569.00 ns, 3.9203 s/op
+WorkloadActual  14: 1 op, 3981475458.00 ns, 3.9815 s/op
+WorkloadActual  15: 1 op, 4060183071.00 ns, 4.0602 s/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 3969996099.00 ns, 3.9700 s/op
+WorkloadResult   2: 1 op, 4078842405.00 ns, 4.0788 s/op
+WorkloadResult   3: 1 op, 4055923946.00 ns, 4.0559 s/op
+WorkloadResult   4: 1 op, 4045882543.00 ns, 4.0459 s/op
+WorkloadResult   5: 1 op, 3954437474.00 ns, 3.9544 s/op
+WorkloadResult   6: 1 op, 3911602643.00 ns, 3.9116 s/op
+WorkloadResult   7: 1 op, 3922869507.00 ns, 3.9229 s/op
+WorkloadResult   8: 1 op, 4003195553.00 ns, 4.0032 s/op
+WorkloadResult   9: 1 op, 3971270108.00 ns, 3.9713 s/op
+WorkloadResult  10: 1 op, 3952511610.00 ns, 3.9525 s/op
+WorkloadResult  11: 1 op, 3950351566.00 ns, 3.9504 s/op
+WorkloadResult  12: 1 op, 3920292569.00 ns, 3.9203 s/op
+WorkloadResult  13: 1 op, 3981475458.00 ns, 3.9815 s/op
+WorkloadResult  14: 1 op, 4060183071.00 ns, 4.0602 s/op
+// GC:  2 2 2 11221528 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 445276 has exited with code 0.
+
+Mean = 3.984 s, StdErr = 0.015 s (0.37%), N = 14, StdDev = 0.056 s
+Min = 3.912 s, Q1 = 3.951 s, Median = 3.971 s, Q3 = 4.035 s, Max = 4.079 s
+IQR = 0.084 s, LowerFence = 3.824 s, UpperFence = 4.162 s
+ConfidenceInterval = [3.921 s; 4.047 s] (CI 99.9%), Margin = 0.063 s (1.58% of Mean)
+Skewness = 0.38, Kurtosis = 1.59, MValue = 2
+
+// ** Remained 0 (0.0 %) benchmark(s) to run. Estimated finish 2026-07-17 0:11 (0h 0m from now) **
+// ***** BenchmarkRunner: Finish  *****
+
+// * Export *
+  BenchmarkDotNet.Artifacts/results/Viset.Benchmarks.WebPEncodingBenchmarks-report.csv
+  BenchmarkDotNet.Artifacts/results/Viset.Benchmarks.WebPEncodingBenchmarks-report-github.md
+  BenchmarkDotNet.Artifacts/results/Viset.Benchmarks.WebPEncodingBenchmarks-report.html
+
+// * Detailed results *
+WebPEncodingBenchmarks.EncodeTwelveFrames: DefaultJob
+Runtime = .NET 10.0.9 (10.0.9, 10.0.926.27113), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 3.984 s, StdErr = 0.015 s (0.37%), N = 14, StdDev = 0.056 s
+Min = 3.912 s, Q1 = 3.951 s, Median = 3.971 s, Q3 = 4.035 s, Max = 4.079 s
+IQR = 0.084 s, LowerFence = 3.824 s, UpperFence = 4.162 s
+ConfidenceInterval = [3.921 s; 4.047 s] (CI 99.9%), Margin = 0.063 s (1.58% of Mean)
+Skewness = 0.38, Kurtosis = 1.59, MValue = 2
+-------------------- Histogram --------------------
+[3.902 s ; 4.103 s) | @@@@@@@@@@@@@@
+---------------------------------------------------
+
+// * Summary *
+
+BenchmarkDotNet v0.15.8, Linux NixOS 26.11 (<host>)
+AMD Ryzen 7 5700X3D 3.26GHz, 1 CPU, 16 logical and 8 physical cores
+.NET SDK 10.0.301
+  [Host]     : .NET 10.0.9 (10.0.9, 10.0.926.27113), X64 RyuJIT x86-64-v3 DEBUG
+  DefaultJob : .NET 10.0.9 (10.0.9, 10.0.926.27113), X64 RyuJIT x86-64-v3
+
+
+| Method             | Mean    | Error    | StdDev   | P95     | P100    | Gen0      | Gen1      | Gen2      | Allocated |
+|------------------- |--------:|---------:|---------:|--------:|--------:|----------:|----------:|----------:|----------:|
+| EncodeTwelveFrames | 3.984 s | 0.0630 s | 0.0559 s | 4.067 s | 4.079 s | 2000.0000 | 2000.0000 | 2000.0000 |   10.7 MB |
+
+// * Hints *
+Outliers
+  WebPEncodingBenchmarks.EncodeTwelveFrames: Default -> 1 outlier  was  removed (4.50 s)
+
+// * Legends *
+  Mean      : Arithmetic mean of all measurements
+  Error     : Half of 99.9% confidence interval
+  StdDev    : Standard deviation of all measurements
+  P95       : Percentile 95
+  P100      : Percentile 100
+  Gen0      : GC Generation 0 collects per 1000 operations
+  Gen1      : GC Generation 1 collects per 1000 operations
+  Gen2      : GC Generation 2 collects per 1000 operations
+  Allocated : Allocated memory per single operation (managed only, inclusive, 1KB = 1024B)
+  1 s       : 1 Second (1 sec)
+
+// * Diagnostic Output - MemoryDiagnoser *
+
+
+// ***** BenchmarkRunner: End *****
+Run time: 00:01:40 (100.55 sec), executed benchmarks: 1
+
+Global total time: 00:01:57 (117.53 sec), executed benchmarks: 1
+// * Artifacts cleanup *
+Artifacts cleanup is finished

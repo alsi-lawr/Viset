@@ -900,6 +900,7 @@ viset.__recording_active = nil
                                     RecordingController.CreateScreencast(
                                         activeCase.Session,
                                         plan.FramesPerSecond,
+                                        plan.WebP,
                                         cancellationToken
                                     )
                                 )
@@ -982,6 +983,7 @@ viset.__recording_active = nil
                 let cleanupFailures = ResizeArray<string>()
                 let mutable captured: CapturedFile option = None
                 let mutable performance: CapturePerformanceMetrics option = None
+                let mutable webPPerformance: WebPProductionMetrics option = None
 
                 try
                     try
@@ -1008,6 +1010,7 @@ viset.__recording_active = nil
 
                             let! animation = recorder.FinalizeAsync cancellationToken
                             performance <- Some animation.Metrics
+                            webPPerformance <- Some animation.Encoded.Metrics
 
                             captured <-
                                 Some
@@ -1065,6 +1068,7 @@ viset.__recording_active = nil
                       Format = planned.Format
                       FrameTicksMs = completed.FrameTicksMs
                       Performance = performance
+                      WebPPerformance = webPPerformance
                       AnimationUpdateDurations = List.ofSeq activeCase.AnimationUpdateDurations }
                 )
 

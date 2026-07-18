@@ -5,10 +5,6 @@ import argparse
 import pathlib
 
 
-NO_BLEND = 0x02
-DISPOSE_TO_BACKGROUND = 0x01
-
-
 def uint24(payload: bytes) -> int:
     return int.from_bytes(payload, "little")
 
@@ -56,8 +52,9 @@ def animation_frames(payload: bytes) -> tuple[tuple[int, int], list[dict[str, in
 parser = argparse.ArgumentParser()
 parser.add_argument("root", type=pathlib.Path)
 parser.add_argument("expected_paths", nargs="+")
-parser.add_argument("--fps", type=int, default=30)
 parser.add_argument("--max-animation-duration-ms", type=int)
+parser.add_argument("--expected-animation-duration-ms", type=int)
+parser.add_argument("--max-animation-frames", type=int)
 parser.add_argument("--media-size", action="append", default=[])
 arguments = parser.parse_args()
 
@@ -92,18 +89,14 @@ for relative_path in expected_paths:
     canvas, frames = animation_frames(payload)
     if relative_path in expected_sizes:
         assert canvas == expected_sizes.pop(relative_path)
-    assert len(frames) >= 2
-    floor_tick = 1000 // arguments.fps
-    ceiling_tick = floor_tick + (1000 % arguments.fps != 0)
-    assert all(frame["duration"] in {floor_tick, ceiling_tick} for frame in frames)
+    assert len(frames) >= 1
+    assert all(frame["duration"] > 0 for frame in frames)
+    duration = sum(frame["duration"] for frame in frames)
     if arguments.max_animation_duration_ms is not None:
-        assert sum(frame["duration"] for frame in frames) <= arguments.max_animation_duration_ms
-    assert all(
-        frame["x"] == 0
-        and frame["y"] == 0
-        and (frame["width"], frame["height"]) == canvas
-        and frame["flags"] == (NO_BLEND | DISPOSE_TO_BACKGROUND)
-        for frame in frames
-    )
+        assert duration <= arguments.max_animation_duration_ms
+    if arguments.expected_animation_duration_ms is not None:
+        assert duration == arguments.expected_animation_duration_ms
+    if arguments.max_animation_frames is not None:
+        assert len(frames) <= arguments.max_animation_frames
 
 assert expected_sizes == {}

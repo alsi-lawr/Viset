@@ -1,0 +1,7 @@
+Browser-produced Page.captureScreenshot probe (rejected)
+
+WebP quality 75 p95: 88.51 ms
+WebP quality 95 p95: 101.54 ms
+PNG p95: 52.45 ms
+
+Decision: do not implement repeated Page.captureScreenshot WebP capture.

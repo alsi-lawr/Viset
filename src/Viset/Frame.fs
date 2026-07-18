@@ -17,7 +17,7 @@ module private FrameInternals =
         String.Concat("\"", JavaScriptEncoder.Default.Encode value, "\"")
 
     let bootstrapScript token (device: Device) =
-        let imagePath = String.Concat("/", token, "/image.png")
+        let imagePath = String.Concat("/", token, "/image")
         let builder = StringBuilder()
         builder.Append("(() => {\n") |> ignore
         builder.Append("const subscribers = new Set();\n") |> ignore
@@ -160,11 +160,15 @@ module private FrameInternals =
 type FrameServer private (listener: TcpListener, token: string, html: byte array, script: byte array) =
     let cancellation = new CancellationTokenSource()
     let imageLock = obj ()
-    let mutable image = Array.empty<byte>
+    let mutable image: CompressedFrame option = None
     let mutable disposed = 0
 
     let currentImage () =
-        lock imageLock (fun () -> Array.copy image)
+        lock imageLock (fun () ->
+            image
+            |> Option.map (fun frame ->
+                { frame with
+                    Bytes = Array.copy frame.Bytes }))
 
     let handleClientAsync (client: TcpClient) =
         task {
@@ -184,10 +188,11 @@ type FrameServer private (listener: TcpListener, token: string, html: byte array
                         "text/javascript; charset=utf-8"
                         script
                         cancellation.Token
-            | Some value when String.Equals(value, String.Concat(rootPath, "image.png"), StringComparison.Ordinal) ->
-                let bytes = currentImage ()
+            | Some value when String.Equals(value, String.Concat(rootPath, "image"), StringComparison.Ordinal) ->
+                let current = currentImage ()
 
-                if bytes.Length = 0 then
+                match current with
+                | None ->
                     do!
                         FrameInternals.writeResponseAsync
                             stream
@@ -195,8 +200,13 @@ type FrameServer private (listener: TcpListener, token: string, html: byte array
                             "text/plain; charset=utf-8"
                             (Encoding.UTF8.GetBytes "Frame image is not available.")
                             cancellation.Token
-                else
-                    do! FrameInternals.writeResponseAsync stream "200 OK" "image/png" bytes cancellation.Token
+                | Some frame ->
+                    let contentType =
+                        match frame.Format with
+                        | PngImage -> "image/png"
+                        | JpegImage -> "image/jpeg"
+
+                    do! FrameInternals.writeResponseAsync stream "200 OK" contentType frame.Bytes cancellation.Token
             | _ ->
                 do!
                     FrameInternals.writeResponseAsync
@@ -231,13 +241,14 @@ type FrameServer private (listener: TcpListener, token: string, html: byte array
         let endpoint = listener.LocalEndpoint :?> IPEndPoint
         Uri(String.Concat("http://127.0.0.1:", endpoint.Port, "/", token, "/"))
 
-    member _.UpdateImage(bytes: byte array) =
-        ArgumentNullException.ThrowIfNull bytes
+    member _.UpdateImage(frame: CompressedFrame) =
+        Media.validateImage frame |> ignore
 
-        if bytes.Length = 0 then
-            invalidArg (nameof bytes) "Frame image bytes must not be empty."
-
-        lock imageLock (fun () -> image <- Array.copy bytes)
+        lock imageLock (fun () ->
+            image <-
+                Some
+                    { frame with
+                        Bytes = Array.copy frame.Bytes })
 
     member private _.DisposeCoreAsync() =
         task {
@@ -254,8 +265,8 @@ type FrameServer private (listener: TcpListener, token: string, html: byte array
     interface IAsyncDisposable with
         member this.DisposeAsync() = ValueTask(this.DisposeCoreAsync())
 
-    static member Start(frameSource: FrameSource, device: Device, initialImage: byte array) =
-        ArgumentNullException.ThrowIfNull initialImage
+    static member Start(frameSource: FrameSource, device: Device, initialImage: CompressedFrame) =
+        Media.validateImage initialImage |> ignore
 
         let source =
             match frameSource with
@@ -321,9 +332,9 @@ type FrameRenderer private (session: BrowserSession, server: FrameServer, readin
 
     member private _.WaitUntilReadyAsync(cancellationToken: CancellationToken) = waitUntilReadyAsync cancellationToken
 
-    member _.UpdateAsync(image: byte array, cancellationToken: CancellationToken) =
+    member _.UpdateAsync(image: CompressedFrame, cancellationToken: CancellationToken) =
         task {
-            Media.validatePng image |> ignore
+            Media.validateImage image |> ignore
 
             let! clearResult =
                 session.EvaluateAsync(
@@ -353,7 +364,7 @@ type FrameRenderer private (session: BrowserSession, server: FrameServer, readin
             session: BrowserSession,
             frameSource: FrameSource,
             device: Device,
-            initialImage: byte array,
+            initialImage: CompressedFrame,
             readinessTimeout: TimeSpan,
             cancellationToken: CancellationToken
         ) =
@@ -368,7 +379,7 @@ type FrameRenderer private (session: BrowserSession, server: FrameServer, readin
                 |> Option.defaultWith (fun () ->
                     invalidArg (nameof device) "The selected device has no frame dimensions.")
 
-            Media.validatePng initialImage |> ignore
+            Media.validateImage initialImage |> ignore
             let server = FrameServer.Start(frameSource, device, initialImage)
 
             try

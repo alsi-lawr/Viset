@@ -2,6 +2,7 @@ namespace Viset
 
 open System
 open System.Collections.Generic
+open System.Diagnostics
 open System.Globalization
 open System.IO
 open System.Text
@@ -22,6 +23,15 @@ module CaptureScript =
     [<Literal>]
     let private MaximumLuaSafeInteger = 9007199254740991L
 
+    [<Literal>]
+    let private MaximumWebPMethod = 6L
+
+    [<Literal>]
+    let private MaximumWebPQuality = 100.0
+
+    [<Literal>]
+    let private DefaultJpegSourceQuality = 95L
+
     let private error message = Error [ message ]
 
     let private concat (parts: string array) = String.Concat parts
@@ -31,6 +41,77 @@ module CaptureScript =
 
     let private invariantInt64 (value: int64) =
         value.ToString(CultureInfo.InvariantCulture)
+
+    let private isExecutable path =
+        if not (File.Exists path) then
+            false
+        elif OperatingSystem.IsWindows() then
+            true
+        else
+            let execute =
+                UnixFileMode.UserExecute
+                ||| UnixFileMode.GroupExecute
+                ||| UnixFileMode.OtherExecute
+
+            File.GetUnixFileMode(path) &&& execute <> enum<UnixFileMode> 0
+
+    let private findFfmpeg () =
+        let executableName =
+            if OperatingSystem.IsWindows() then
+                "ffmpeg.exe"
+            else
+                "ffmpeg"
+
+        Environment.GetEnvironmentVariable "PATH"
+        |> Option.ofObj
+        |> Option.defaultValue String.Empty
+        |> fun value -> value.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
+        |> Seq.tryPick (fun directory ->
+            try
+                let path =
+                    Path.Combine(directory.Trim().Trim('"'), executableName) |> Path.GetFullPath
+
+                if isExecutable path then Some path else None
+            with
+            | :? ArgumentException
+            | :? NotSupportedException
+            | :? PathTooLongException -> None)
+
+    let private validateFfmpeg path =
+        try
+            let startInfo = ProcessStartInfo(path)
+            startInfo.UseShellExecute <- false
+            startInfo.CreateNoWindow <- true
+            startInfo.RedirectStandardOutput <- true
+            startInfo.RedirectStandardError <- true
+
+            for argument in [ "-hide_banner"; "-h"; "encoder=libwebp_anim" ] do
+                startInfo.ArgumentList.Add argument
+
+            use ffmpegProcess = new Process(StartInfo = startInfo)
+
+            if not (ffmpegProcess.Start()) then
+                Error "ffmpeg could not be started."
+            else
+                let standardOutput = ffmpegProcess.StandardOutput.ReadToEndAsync()
+                let standardError = ffmpegProcess.StandardError.ReadToEndAsync()
+
+                if not (ffmpegProcess.WaitForExit 5000) then
+                    ffmpegProcess.Kill true
+                    Error "ffmpeg did not respond to its encoder probe within five seconds."
+                else
+                    let output =
+                        String.Concat(standardOutput.GetAwaiter().GetResult(), standardError.GetAwaiter().GetResult())
+
+                    if
+                        ffmpegProcess.ExitCode = 0
+                        && output.Contains("Encoder libwebp_anim", StringComparison.Ordinal)
+                    then
+                        Ok path
+                    else
+                        Error "ffmpeg does not provide the libwebp_anim encoder."
+        with errorValue ->
+            Error(String.Concat("ffmpeg could not be inspected: ", errorValue.Message))
 
     let private appendIndex path index =
         concat [| path; "["; invariantInt32 index; "]" |]
@@ -363,6 +444,138 @@ module CaptureScript =
             )
         | WebP -> Ok(int value.Value)
 
+    let private webPOptions format (model: WebpTomlModel | null) =
+        match format, Option.ofObj model with
+        | Png, Some _ -> error "webp configuration is valid only for .webp output."
+        | Png, None -> Ok WebPOptions.Default
+        | WebP, model ->
+            let sourceName =
+                model
+                |> Option.map (fun value -> value.Source)
+                |> Option.defaultValue String.Empty
+
+            let sourceQuality =
+                model |> Option.bind (fun value -> value.SourceQuality |> Option.ofNullable)
+
+            let source =
+                if String.IsNullOrWhiteSpace sourceName || sourceName = "png_screencast" then
+                    match sourceQuality with
+                    | Some _ -> error "webp.source_quality is valid only when webp.source = 'jpeg_screencast'."
+                    | None -> Ok PngScreencast
+                elif sourceName = "jpeg_screencast" then
+                    let quality = sourceQuality |> Option.defaultValue DefaultJpegSourceQuality
+
+                    if quality < 0L || quality > 100L then
+                        error "webp.source_quality must be between 0 and 100."
+                    else
+                        Ok(JpegScreencast(int quality))
+                else
+                    error (
+                        String.Concat(
+                            "Unknown webp.source '",
+                            sourceName,
+                            "'; expected png_screencast or jpeg_screencast."
+                        )
+                    )
+
+            let methodValue =
+                model
+                |> Option.bind (fun value -> value.Method |> Option.ofNullable)
+                |> Option.defaultValue 0L
+
+            let modeName =
+                model
+                |> Option.map (fun value -> value.Mode)
+                |> Option.defaultValue String.Empty
+
+            let modeDefaultQuality =
+                if String.IsNullOrWhiteSpace modeName || modeName = "lossy" then
+                    Ok("lossy", 75.0)
+                elif modeName = "lossless" then
+                    Ok("lossless", 50.0)
+                else
+                    error (String.Concat("Unknown webp.mode '", modeName, "'; expected lossy or lossless."))
+
+            let qualityValue =
+                model |> Option.bind (fun value -> value.Quality |> Option.ofNullable)
+
+            let encoderName =
+                model
+                |> Option.map (fun value -> value.Encoder)
+                |> Option.defaultValue String.Empty
+
+            let pipelineName =
+                model
+                |> Option.map (fun value -> value.Pipeline)
+                |> Option.defaultValue String.Empty
+
+            if methodValue < 0L || methodValue > MaximumWebPMethod then
+                error "webp.method must be between 0 and 6."
+            else
+                let encoder =
+                    if String.IsNullOrWhiteSpace encoderName || encoderName = "libwebp_full" then
+                        Ok LibWebPFull
+                    elif encoderName = "libwebp_anim" then
+                        Ok LibWebPAnim
+                    elif encoderName = "ffmpeg" then
+                        match findFfmpeg () with
+                        | None ->
+                            error (
+                                "webp.encoder = 'ffmpeg' requires ffmpeg with the libwebp_anim encoder on PATH; "
+                                + "Viset does not bundle ffmpeg."
+                            )
+                        | Some path ->
+                            match validateFfmpeg path with
+                            | Ok executable -> Ok(Ffmpeg executable)
+                            | Error reason ->
+                                error (
+                                    String.Concat(
+                                        "webp.encoder = 'ffmpeg' requires a usable ffmpeg with the libwebp_anim encoder; ",
+                                        reason,
+                                        " Viset does not bundle ffmpeg."
+                                    )
+                                )
+                    else
+                        error (
+                            String.Concat(
+                                "Unknown webp.encoder '",
+                                encoderName,
+                                "'; expected libwebp_full, libwebp_anim, or ffmpeg."
+                            )
+                        )
+
+                let pipeline =
+                    if String.IsNullOrWhiteSpace pipelineName || pipelineName = "spooled" then
+                        Ok Spooled
+                    elif pipelineName = "live" then
+                        Ok Live
+                    else
+                        error (String.Concat("Unknown webp.pipeline '", pipelineName, "'; expected spooled or live."))
+
+                match source, encoder, pipeline, modeDefaultQuality with
+                | Error errors, _, _, _
+                | _, Error errors, _, _
+                | _, _, Error errors, _
+                | _, _, _, Error errors -> Error errors
+                | Ok selectedSource, Ok selectedEncoder, Ok selectedPipeline, Ok(mode, defaultQuality) ->
+                    let quality = qualityValue |> Option.defaultValue defaultQuality
+
+                    if not (Double.IsFinite quality) || quality < 0.0 || quality > MaximumWebPQuality then
+                        error "webp.quality must be a finite number between 0 and 100."
+                    else
+                        let selectedMode =
+                            if mode = "lossless" then
+                                Lossless quality
+                            else
+                                Lossy quality
+
+                        Ok
+                            { Source = selectedSource
+                              Encoder = selectedEncoder
+                              Pipeline = selectedPipeline
+                              Mode = selectedMode
+                              Method = int methodValue }
+
     let private extractHeader (source: string) =
         let mutable index = 0
 
@@ -410,93 +623,97 @@ module CaptureScript =
                 match captureFormat outputTemplate with
                 | Error errors -> Error errors
                 | Ok format ->
-                    match parseFrameSource scriptDirectory model.Frame with
+                    match webPOptions format model.Webp with
                     | Error errors -> Error errors
-                    | Ok frameSource ->
-                        match framesPerSecond format model.FramesPerSecond with
+                    | Ok webP ->
+                        match parseFrameSource scriptDirectory model.Frame with
                         | Error errors -> Error errors
-                        | Ok fps ->
-                            match validateBrowserArguments model.BrowserArguments with
+                        | Ok frameSource ->
+                            match framesPerSecond format model.FramesPerSecond with
                             | Error errors -> Error errors
-                            | Ok browserArguments ->
-                                match parseDevices frameSource model.Devices with
+                            | Ok fps ->
+                                match validateBrowserArguments model.BrowserArguments with
                                 | Error errors -> Error errors
-                                | Ok devices ->
-                                    match parseAxes model.Matrix with
+                                | Ok browserArguments ->
+                                    match parseDevices frameSource model.Devices with
                                     | Error errors -> Error errors
-                                    | Ok axes ->
-                                        match parseTomlTable "data" model.Data with
+                                    | Ok devices ->
+                                        match parseAxes model.Matrix with
                                         | Error errors -> Error errors
-                                        | Ok data ->
-                                            let outputRootResult =
-                                                match request.OutputPath with
-                                                | Some outputPath -> Ok outputPath
-                                                | None when String.IsNullOrWhiteSpace model.OutputRoot ->
-                                                    Ok scriptDirectory
-                                                | None -> resolveFrom scriptDirectory "output_root" model.OutputRoot
-
-                                            match outputRootResult with
+                                        | Ok axes ->
+                                            match parseTomlTable "data" model.Data with
                                             | Error errors -> Error errors
-                                            | Ok outputRoot ->
-                                                let pathComparer =
-                                                    if OperatingSystem.IsWindows() then
-                                                        StringComparer.OrdinalIgnoreCase
-                                                    else
-                                                        StringComparer.Ordinal
+                                            | Ok data ->
+                                                let outputRootResult =
+                                                    match request.OutputPath with
+                                                    | Some outputPath -> Ok outputPath
+                                                    | None when String.IsNullOrWhiteSpace model.OutputRoot ->
+                                                        Ok scriptDirectory
+                                                    | None -> resolveFrom scriptDirectory "output_root" model.OutputRoot
 
-                                                let outputPaths = HashSet<string>(pathComparer)
+                                                match outputRootResult with
+                                                | Error errors -> Error errors
+                                                | Ok outputRoot ->
+                                                    let pathComparer =
+                                                        if OperatingSystem.IsWindows() then
+                                                            StringComparer.OrdinalIgnoreCase
+                                                        else
+                                                            StringComparer.Ordinal
 
-                                                let planCase (deviceName, device) matrixValues =
-                                                    let placeholders =
-                                                        ("device", TomlValue.String deviceName) :: matrixValues
+                                                    let outputPaths = HashSet<string>(pathComparer)
 
-                                                    match renderOutput outputTemplate placeholders with
-                                                    | Error errors -> Error errors
-                                                    | Ok rendered ->
-                                                        match validateOutputPath rendered with
+                                                    let planCase (deviceName, device) matrixValues =
+                                                        let placeholders =
+                                                            ("device", TomlValue.String deviceName) :: matrixValues
+
+                                                        match renderOutput outputTemplate placeholders with
                                                         | Error errors -> Error errors
-                                                        | Ok relativePath ->
-                                                            let absolutePath =
-                                                                Path.GetFullPath(
-                                                                    relativePath.Replace(
-                                                                        '/',
-                                                                        Path.DirectorySeparatorChar
-                                                                    ),
-                                                                    outputRoot
-                                                                )
-
-                                                            if not (outputPaths.Add absolutePath) then
-                                                                error (
-                                                                    String.Concat(
-                                                                        "Expanded output path is duplicated: ",
-                                                                        relativePath
+                                                        | Ok rendered ->
+                                                            match validateOutputPath rendered with
+                                                            | Error errors -> Error errors
+                                                            | Ok relativePath ->
+                                                                let absolutePath =
+                                                                    Path.GetFullPath(
+                                                                        relativePath.Replace(
+                                                                            '/',
+                                                                            Path.DirectorySeparatorChar
+                                                                        ),
+                                                                        outputRoot
                                                                     )
-                                                                )
-                                                            else
-                                                                Ok
-                                                                    { Format = format
-                                                                      OutputRelativePath = relativePath
-                                                                      OutputPath = absolutePath
-                                                                      Device = device
-                                                                      Axes = matrixValues
-                                                                      Data = data }
 
-                                                let matrixValues = expandAxes axes
+                                                                if not (outputPaths.Add absolutePath) then
+                                                                    error (
+                                                                        String.Concat(
+                                                                            "Expanded output path is duplicated: ",
+                                                                            relativePath
+                                                                        )
+                                                                    )
+                                                                else
+                                                                    Ok
+                                                                        { Format = format
+                                                                          OutputRelativePath = relativePath
+                                                                          OutputPath = absolutePath
+                                                                          Device = device
+                                                                          Axes = matrixValues
+                                                                          Data = data }
 
-                                                [ for device in devices do
-                                                      for values in matrixValues do
-                                                          yield device, values ]
-                                                |> traverse (fun _ (device, values) -> planCase device values)
-                                                |> Result.map (fun captures ->
-                                                    { ScriptPath = request.ScriptPath
-                                                      ScriptDirectory = scriptDirectory
-                                                      OutputPath = outputRoot
-                                                      FrameSource = frameSource
-                                                      BrowserPath = request.BrowserPath
-                                                      BrowserArguments = browserArguments
-                                                      FramesPerSecond = fps
-                                                      Captures = captures
-                                                      Force = request.Force })
+                                                    let matrixValues = expandAxes axes
+
+                                                    [ for device in devices do
+                                                          for values in matrixValues do
+                                                              yield device, values ]
+                                                    |> traverse (fun _ (device, values) -> planCase device values)
+                                                    |> Result.map (fun captures ->
+                                                        { ScriptPath = request.ScriptPath
+                                                          ScriptDirectory = scriptDirectory
+                                                          OutputPath = outputRoot
+                                                          FrameSource = frameSource
+                                                          BrowserPath = request.BrowserPath
+                                                          BrowserArguments = browserArguments
+                                                          FramesPerSecond = fps
+                                                          WebP = webP
+                                                          Captures = captures
+                                                          Force = request.Force })
 
     let plan (request: CaptureRequest) =
         if not (File.Exists request.ScriptPath) then

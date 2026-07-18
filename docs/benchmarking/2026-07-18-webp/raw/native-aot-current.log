@@ -1,0 +1,6 @@
+  Viset.Serialization -> <repo>/src/Viset.Serialization/bin/Release/net10.0/linux-x64/Viset.Serialization.dll
+  Viset -> <repo>/src/Viset/bin/Release/net10.0/linux-x64/viset.dll
+  Generating native code
+<repo>/.agent-workspace/nuget-packages/fsharp.core/10.1.301/lib/netstandard2.1/FSharp.Core.dll : warning IL3053: Assembly 'FSharp.Core' produced AOT analysis warnings. [<repo>/src/Viset/Viset.fsproj]
+<repo>/.agent-workspace/nuget-packages/fsharp.core/10.1.301/lib/netstandard2.1/FSharp.Core.dll : warning IL2104: Assembly 'FSharp.Core' produced trim warnings. For more information see https://aka.ms/il2104 [<repo>/src/Viset/Viset.fsproj]
+  Viset -> <repo>/src/Viset/bin/Release/net10.0/linux-x64/publish/

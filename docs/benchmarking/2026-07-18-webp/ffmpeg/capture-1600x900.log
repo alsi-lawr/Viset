@@ -1,0 +1,9 @@
+=== ffmpeg ===
+output: <repo>/.agent-workspace/20260718T-webp-expansion/component-ffmpeg
+captures: 1
+webp: animations/laptop-light-home-scroll.webp
+written: <repo>/.agent-workspace/20260718T-webp-expansion/component-ffmpeg/animations/laptop-light-home-scroll.webp
+metrics: <repo>/.agent-workspace/20260718T-webp-expansion/component-ffmpeg/animations/laptop-light-home-scroll.webp source=png_screencast pipeline=spooled frames=90 unique=43 p95_ms=31.93 p99_ms=874.52 max_ms=874.52 missed=47 duplicated=47 dropped=37
+warning: frame acquisition exceeded the 33.33 ms budget for <repo>/.agent-workspace/20260718T-webp-expansion/component-ffmpeg/animations/laptop-light-home-scroll.webp: overruns=2, missed=47, duplicated=47, dropped=37, p95_ms=31.93, p99_ms=874.52, max_ms=874.52
+webp_metrics: <repo>/.agent-workspace/20260718T-webp-expansion/component-ffmpeg/animations/laptop-light-home-scroll.webp encoder=ffmpeg pipeline=spooled frames=90 encoded=43 spilled=0 workers=1 total_ms=1275.00 per_frame_ms=14.17 decode_p95_ms=n/a encode_p95_ms=n/a mux_ms=0.00
+warning: WebP production throughput exceeded 10 ms per frame for <repo>/.agent-workspace/20260718T-webp-expansion/component-ffmpeg/animations/laptop-light-home-scroll.webp: per_frame_ms=14.17, target_ms=5.00

@@ -26,9 +26,9 @@ type CaptureSession
             return raw
         }
 
-    member _.FramePngAsync(raw: byte array, cancellationToken: CancellationToken) =
+    member _.PrepareFrameAsync(raw: CompressedFrame, cancellationToken: CancellationToken) =
         task {
-            Media.validatePng raw |> ignore
+            Media.validateImage raw |> ignore
 
             match frameSource with
             | None -> return raw
@@ -63,13 +63,15 @@ type CaptureSession
 
                 let! framed = renderer.CapturePngAsync cancellationToken
                 Media.validatePng framed |> ignore
-                return framed
+                return { Format = PngImage; Bytes = framed }
         }
 
     member this.CapturePngAsync(cancellationToken: CancellationToken) =
         task {
             let! raw = this.CaptureRawPngAsync cancellationToken
-            return! this.FramePngAsync(raw, cancellationToken)
+            let! framed = this.PrepareFrameAsync({ Format = PngImage; Bytes = raw }, cancellationToken)
+
+            return framed.Bytes
         }
 
     member private _.DisposeCoreAsync() =

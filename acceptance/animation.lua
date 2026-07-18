@@ -54,6 +54,11 @@ viset.page.evaluate(set_motion, { progress = 0 })
 
 local recording = viset.record()
 recording:start()
+
+if os.getenv("VISET_FIXTURE_FAIL_ACTIVE") == "1" then
+  error("forced active recording failure")
+end
+
 recording:during("200ms", function()
   recording:during("160ms", function()
     viset.page.animate({

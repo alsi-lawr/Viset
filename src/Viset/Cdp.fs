@@ -451,13 +451,21 @@ type CdpClient private (socket: ClientWebSocket, commandTimeout: TimeSpan) =
             return Convert.FromBase64String result.Data
         }
 
-    member this.StartScreencastAsync(width: int, height: int, cancellationToken: CancellationToken) =
+    member this.StartScreencastAsync
+        (source: WebPSource, width: int, height: int, cancellationToken: CancellationToken)
+        =
         task {
             if width <= 0 || height <= 0 then
                 invalidArg (nameof width) "Screencast dimensions must be positive."
 
             let parameters =
                 CdpScreencastParameters(MaxWidth = width, MaxHeight = height, EveryNthFrame = 1)
+
+            match source with
+            | PngScreencast -> parameters.Format <- "png"
+            | JpegScreencast quality ->
+                parameters.Format <- "jpeg"
+                parameters.Quality <- quality
 
             clearEvents "Page.screencastFrame"
 
@@ -471,10 +479,16 @@ type CdpClient private (socket: ClientWebSocket, commandTimeout: TimeSpan) =
             this.RequireSuccess response |> ignore
         }
 
-    member this.StartScreencastAsync(cancellationToken: CancellationToken) =
+    member this.StartScreencastAsync(source: WebPSource, cancellationToken: CancellationToken) =
         task {
             clearEvents "Page.screencastFrame"
             let parameters = CdpScreencastParameters(EveryNthFrame = 1)
+
+            match source with
+            | PngScreencast -> parameters.Format <- "png"
+            | JpegScreencast quality ->
+                parameters.Format <- "jpeg"
+                parameters.Quality <- quality
 
             let! response =
                 this.SendCommandAsync(

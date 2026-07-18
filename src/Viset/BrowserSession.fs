@@ -391,15 +391,21 @@ type BrowserSession
     member this.CapturePngAsync(cancellationToken: CancellationToken) =
         this.RunAsync("capture PNG", cancellationToken, fun () -> client.CapturePngAsync cancellationToken)
 
-    member this.StartScreencastAsync(width: int, height: int, cancellationToken: CancellationToken) =
+    member this.StartScreencastAsync
+        (source: WebPSource, width: int, height: int, cancellationToken: CancellationToken)
+        =
         this.RunAsync(
             "start screencast",
             cancellationToken,
-            fun () -> client.StartScreencastAsync(width, height, cancellationToken)
+            fun () -> client.StartScreencastAsync(source, width, height, cancellationToken)
         )
 
-    member this.StartScreencastAsync(cancellationToken: CancellationToken) =
-        this.RunAsync("start screencast", cancellationToken, fun () -> client.StartScreencastAsync cancellationToken)
+    member this.StartScreencastAsync(source: WebPSource, cancellationToken: CancellationToken) =
+        this.RunAsync(
+            "start screencast",
+            cancellationToken,
+            fun () -> client.StartScreencastAsync(source, cancellationToken)
+        )
 
     member this.ReadScreencastFrameAsync(cancellationToken: CancellationToken) =
         this.RunAsync(

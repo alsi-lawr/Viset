@@ -11,11 +11,11 @@ import tomllib
 
 
 RID_LAYOUTS = {
-    "linux-x64": ("viset", "Magick.Native-Q8-x64.dll.so", "linux", 62),
-    "linux-arm64": ("viset", "Magick.Native-Q8-arm64.dll.so", "linux", 183),
-    "osx-arm64": ("viset", "Magick.Native-Q8-arm64.dll.dylib", "macos", 0x0100000C),
-    "win-x64": ("viset.exe", "Magick.Native-Q8-x64.dll", "windows", 0x8664),
-    "win-arm64": ("viset.exe", "Magick.Native-Q8-arm64.dll", "windows", 0xAA64),
+    "linux-x64": ("viset", "linux", 62),
+    "linux-arm64": ("viset", "linux", 183),
+    "osx-arm64": ("viset", "macos", 0x0100000C),
+    "win-x64": ("viset.exe", "windows", 0x8664),
+    "win-arm64": ("viset.exe", "windows", 0xAA64),
 }
 
 
@@ -122,7 +122,7 @@ arguments = parser.parse_args()
 
 root = pathlib.Path(__file__).resolve().parents[2]
 directory = arguments.directory.resolve()
-executable_name, magick_sidecar, platform, expected_machine = RID_LAYOUTS[arguments.rid]
+executable_name, platform, expected_machine = RID_LAYOUTS[arguments.rid]
 executable = directory / executable_name
 
 with (root / "acceptance" / "native-sidecars.toml").open("rb") as stream:
@@ -131,7 +131,6 @@ with (root / "acceptance" / "native-sidecars.toml").open("rb") as stream:
 webp_sidecars = sidecar_manifest["platforms"][platform]["files"]
 expected = {
     executable_name,
-    magick_sidecar,
     *webp_sidecars,
     "browser-lock.toml",
 }
@@ -151,7 +150,6 @@ if machine != expected_machine:
 if platform == "macos":
     verify_macos_install_names(directory, webp_sidecars)
 load_native_sidecars(directory, platform, webp_sidecars)
-ctypes.CDLL(str(directory / magick_sidecar))
 
 if run(executable, "--version").strip() != "viset 0.1.0":
     raise RuntimeError("unexpected viset version output")

@@ -1,0 +1,182 @@
+// Validating benchmarks:
+// ***** BenchmarkRunner: Start   *****
+// ***** Found 2 benchmark(s) in total *****
+// ***** Building 1 exe(s) in Parallel: Start   *****
+// start dotnet  restore --nodeReuse:false /p:UseSharedCompilation=false /p:Deterministic=true /p:Optimize=true /p:ArtifactsPath="<repo>/benchmarks/Viset.Benchmarks/bin/Release/net10.0/Viset.Benchmarks-CoreCLR-1/" /p:OutDir="<repo>/benchmarks/Viset.Benchmarks/bin/Release/net10.0/Viset.Benchmarks-CoreCLR-1/bin/Release/net10.0/" /p:OutputPath="<repo>/benchmarks/Viset.Benchmarks/bin/Release/net10.0/Viset.Benchmarks-CoreCLR-1/bin/Release/net10.0/" /p:PublishDir="<repo>/benchmarks/Viset.Benchmarks/bin/Release/net10.0/Viset.Benchmarks-CoreCLR-1/publish/" in <repo>/benchmarks/Viset.Benchmarks/bin/Release/net10.0/Viset.Benchmarks-CoreCLR-1
+// command took 1.23 sec and exited with 0
+// start dotnet  build -c Release --no-restore --nodeReuse:false /p:UseSharedCompilation=false /p:Deterministic=true /p:Optimize=true /p:ArtifactsPath="<repo>/benchmarks/Viset.Benchmarks/bin/Release/net10.0/Viset.Benchmarks-CoreCLR-1/" /p:OutDir="<repo>/benchmarks/Viset.Benchmarks/bin/Release/net10.0/Viset.Benchmarks-CoreCLR-1/bin/Release/net10.0/" /p:OutputPath="<repo>/benchmarks/Viset.Benchmarks/bin/Release/net10.0/Viset.Benchmarks-CoreCLR-1/bin/Release/net10.0/" /p:PublishDir="<repo>/benchmarks/Viset.Benchmarks/bin/Release/net10.0/Viset.Benchmarks-CoreCLR-1/publish/" --output "<repo>/benchmarks/Viset.Benchmarks/bin/Release/net10.0/Viset.Benchmarks-CoreCLR-1/bin/Release/net10.0/" in <repo>/benchmarks/Viset.Benchmarks/bin/Release/net10.0/Viset.Benchmarks-CoreCLR-1
+// command took 15.42 sec and exited with 0
+// ***** Done, took 00:00:16 (16.72 sec)   *****
+// Found 2 benchmarks:
+//   WebPEncodingBenchmarks.DecodeTwelvePngFrames: CoreCLR(Runtime=.NET 10.0, IterationCount=3, LaunchCount=1, WarmupCount=3)
+//   WebPEncodingBenchmarks.EncodeTwelveFrames: CoreCLR(Runtime=.NET 10.0, IterationCount=3, LaunchCount=1, WarmupCount=3)
+
+// **************************
+// Benchmark: WebPEncodingBenchmarks.DecodeTwelvePngFrames: CoreCLR(Runtime=.NET 10.0, IterationCount=3, LaunchCount=1, WarmupCount=3)
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Viset.Benchmarks-CoreCLR-1.dll --anonymousPipes 129 130 --benchmarkName Viset.Benchmarks.WebPEncodingBenchmarks.DecodeTwelvePngFrames --job CoreCLR --benchmarkId 0 in <repo>/benchmarks/Viset.Benchmarks/bin/Release/net10.0/Viset.Benchmarks-CoreCLR-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.9 (10.0.9, 10.0.926.27113), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: CoreCLR(IterationCount=3, LaunchCount=1, WarmupCount=3)
+
+OverheadJitting  1: 1 op, 211688.00 ns, 211.6880 us/op
+WorkloadJitting  1: 1 op, 94682983.00 ns, 94.6830 ms/op
+
+WorkloadPilot    1: 2 op, 175957225.00 ns, 87.9786 ms/op
+WorkloadPilot    2: 3 op, 250670265.00 ns, 83.5568 ms/op
+WorkloadPilot    3: 4 op, 322195970.00 ns, 80.5490 ms/op
+WorkloadPilot    4: 5 op, 395292370.00 ns, 79.0585 ms/op
+WorkloadPilot    5: 6 op, 470546849.00 ns, 78.4245 ms/op
+WorkloadPilot    6: 7 op, 544314030.00 ns, 77.7591 ms/op
+
+WorkloadWarmup   1: 7 op, 554462279.00 ns, 79.2089 ms/op
+WorkloadWarmup   2: 7 op, 553343775.00 ns, 79.0491 ms/op
+WorkloadWarmup   3: 7 op, 520505588.00 ns, 74.3579 ms/op
+
+// BeforeActualRun
+WorkloadActual   1: 7 op, 467211696.00 ns, 66.7445 ms/op
+WorkloadActual   2: 7 op, 468073517.00 ns, 66.8676 ms/op
+WorkloadActual   3: 7 op, 485726230.00 ns, 69.3895 ms/op
+
+// AfterActualRun
+WorkloadResult   1: 7 op, 467211696.00 ns, 66.7445 ms/op
+WorkloadResult   2: 7 op, 468073517.00 ns, 66.8676 ms/op
+WorkloadResult   3: 7 op, 485726230.00 ns, 69.3895 ms/op
+// GC:  20 20 20 78134952 7
+// Threading:  0 0 7
+
+// AfterAll
+// Benchmark Process 530939 has exited with code 0.
+
+Mean = 67.667 ms, StdErr = 0.862 ms (1.27%), N = 3, StdDev = 1.493 ms
+Min = 66.745 ms, Q1 = 66.806 ms, Median = 66.868 ms, Q3 = 68.129 ms, Max = 69.389 ms
+IQR = 1.322 ms, LowerFence = 64.822 ms, UpperFence = 70.112 ms
+ConfidenceInterval = [40.433 ms; 94.901 ms] (CI 99.9%), Margin = 27.234 ms (40.25% of Mean)
+Skewness = 0.38, Kurtosis = 0.67, MValue = 2
+
+// ** Remained 1 (50.0 %) benchmark(s) to run. Estimated finish 2026-07-17 0:36 (0h 0m from now) **
+// **************************
+// Benchmark: WebPEncodingBenchmarks.EncodeTwelveFrames: CoreCLR(Runtime=.NET 10.0, IterationCount=3, LaunchCount=1, WarmupCount=3)
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Viset.Benchmarks-CoreCLR-1.dll --anonymousPipes 129 130 --benchmarkName Viset.Benchmarks.WebPEncodingBenchmarks.EncodeTwelveFrames --job CoreCLR --benchmarkId 1 in <repo>/benchmarks/Viset.Benchmarks/bin/Release/net10.0/Viset.Benchmarks-CoreCLR-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.8
+// Runtime=.NET 10.0.9 (10.0.9, 10.0.926.27113), X64 RyuJIT x86-64-v3
+// GC=Concurrent Workstation
+// HardwareIntrinsics=AVX2+BMI1+BMI2+F16C+FMA+LZCNT+MOVBE,AVX,SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=256
+// Job: CoreCLR(IterationCount=3, LaunchCount=1, WarmupCount=3)
+
+OverheadJitting  1: 1 op, 194085.00 ns, 194.0850 us/op
+WorkloadJitting  1: 1 op, 1983883488.00 ns, 1.9839 s/op
+
+OverheadJitting  2: 1 op, 280.00 ns, 280.0000 ns/op
+WorkloadJitting  2: 1 op, 2029733698.00 ns, 2.0297 s/op
+
+WorkloadWarmup   1: 1 op, 1973217294.00 ns, 1.9732 s/op
+WorkloadWarmup   2: 1 op, 2076317657.00 ns, 2.0763 s/op
+WorkloadWarmup   3: 1 op, 2160222125.00 ns, 2.1602 s/op
+
+// BeforeActualRun
+WorkloadActual   1: 1 op, 2424549166.00 ns, 2.4245 s/op
+WorkloadActual   2: 1 op, 2263131607.00 ns, 2.2631 s/op
+WorkloadActual   3: 1 op, 2061691311.00 ns, 2.0617 s/op
+
+// AfterActualRun
+WorkloadResult   1: 1 op, 2424549166.00 ns, 2.4245 s/op
+WorkloadResult   2: 1 op, 2263131607.00 ns, 2.2631 s/op
+WorkloadResult   3: 1 op, 2061691311.00 ns, 2.0617 s/op
+// GC:  2 2 2 11181712 1
+// Threading:  0 0 1
+
+// AfterAll
+// Benchmark Process 531061 has exited with code 0.
+
+Mean = 2.250 s, StdErr = 0.105 s (4.67%), N = 3, StdDev = 0.182 s
+Min = 2.062 s, Q1 = 2.162 s, Median = 2.263 s, Q3 = 2.344 s, Max = 2.425 s
+IQR = 0.181 s, LowerFence = 1.890 s, UpperFence = 2.616 s
+ConfidenceInterval = [-1.067 s; 5.566 s] (CI 99.9%), Margin = 3.317 s (147.42% of Mean)
+Skewness = -0.07, Kurtosis = 0.67, MValue = 2
+
+// ** Remained 0 (0.0 %) benchmark(s) to run. Estimated finish 2026-07-17 0:36 (0h 0m from now) **
+// ***** BenchmarkRunner: Finish  *****
+
+// * Export *
+  BenchmarkDotNet.Artifacts/results/Viset.Benchmarks.WebPEncodingBenchmarks-report.csv
+  BenchmarkDotNet.Artifacts/results/Viset.Benchmarks.WebPEncodingBenchmarks-report-github.md
+  BenchmarkDotNet.Artifacts/results/Viset.Benchmarks.WebPEncodingBenchmarks-report.html
+
+// * Detailed results *
+WebPEncodingBenchmarks.DecodeTwelvePngFrames: CoreCLR(Runtime=.NET 10.0, IterationCount=3, LaunchCount=1, WarmupCount=3)
+Runtime = .NET 10.0.9 (10.0.9, 10.0.926.27113), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 67.667 ms, StdErr = 0.862 ms (1.27%), N = 3, StdDev = 1.493 ms
+Min = 66.745 ms, Q1 = 66.806 ms, Median = 66.868 ms, Q3 = 68.129 ms, Max = 69.389 ms
+IQR = 1.322 ms, LowerFence = 64.822 ms, UpperFence = 70.112 ms
+ConfidenceInterval = [40.433 ms; 94.901 ms] (CI 99.9%), Margin = 27.234 ms (40.25% of Mean)
+Skewness = 0.38, Kurtosis = 0.67, MValue = 2
+-------------------- Histogram --------------------
+[66.709 ms ; 69.425 ms) | @@@
+---------------------------------------------------
+
+WebPEncodingBenchmarks.EncodeTwelveFrames: CoreCLR(Runtime=.NET 10.0, IterationCount=3, LaunchCount=1, WarmupCount=3)
+Runtime = .NET 10.0.9 (10.0.9, 10.0.926.27113), X64 RyuJIT x86-64-v3; GC = Concurrent Workstation
+Mean = 2.250 s, StdErr = 0.105 s (4.67%), N = 3, StdDev = 0.182 s
+Min = 2.062 s, Q1 = 2.162 s, Median = 2.263 s, Q3 = 2.344 s, Max = 2.425 s
+IQR = 0.181 s, LowerFence = 1.890 s, UpperFence = 2.616 s
+ConfidenceInterval = [-1.067 s; 5.566 s] (CI 99.9%), Margin = 3.317 s (147.42% of Mean)
+Skewness = -0.07, Kurtosis = 0.67, MValue = 2
+-------------------- Histogram --------------------
+[1.896 s ; 2.178 s) | @
+[2.178 s ; 2.509 s) | @@
+---------------------------------------------------
+
+// * Summary *
+
+BenchmarkDotNet v0.15.8, Linux NixOS 26.11 (<host>)
+AMD Ryzen 7 5700X3D 3.97GHz, 1 CPU, 16 logical and 8 physical cores
+.NET SDK 10.0.301
+  [Host]  : .NET 10.0.9 (10.0.9, 10.0.926.27113), X64 RyuJIT x86-64-v3 DEBUG
+  CoreCLR : .NET 10.0.9 (10.0.9, 10.0.926.27113), X64 RyuJIT x86-64-v3
+
+Job=CoreCLR  Runtime=.NET 10.0  IterationCount=3
+LaunchCount=1  WarmupCount=3
+
+| Method                | Mean        | Error       | StdDev     | P95         | P100        | Ratio | RatioSD | Gen0      | Gen1      | Gen2      | Allocated | Alloc Ratio |
+|---------------------- |------------:|------------:|-----------:|------------:|------------:|------:|--------:|----------:|----------:|----------:|----------:|------------:|
+| DecodeTwelvePngFrames |    67.67 ms |    27.23 ms |   1.493 ms |    69.14 ms |    69.39 ms |  1.00 |    0.03 | 2857.1429 | 2857.1429 | 2857.1429 |  10.65 MB |        1.00 |
+| EncodeTwelveFrames    | 2,249.79 ms | 3,316.64 ms | 181.796 ms | 2,408.41 ms | 2,424.55 ms | 33.26 |    2.41 | 2000.0000 | 2000.0000 | 2000.0000 |  10.66 MB |        1.00 |
+
+// * Legends *
+  Mean        : Arithmetic mean of all measurements
+  Error       : Half of 99.9% confidence interval
+  StdDev      : Standard deviation of all measurements
+  P95         : Percentile 95
+  P100        : Percentile 100
+  Ratio       : Mean of the ratio distribution ([Current]/[Baseline])
+  RatioSD     : Standard deviation of the ratio distribution ([Current]/[Baseline])
+  Gen0        : GC Generation 0 collects per 1000 operations
+  Gen1        : GC Generation 1 collects per 1000 operations
+  Gen2        : GC Generation 2 collects per 1000 operations
+  Allocated   : Allocated memory per single operation (managed only, inclusive, 1KB = 1024B)
+  Alloc Ratio : Allocated memory ratio distribution ([Current]/[Baseline])
+  1 ms        : 1 Millisecond (0.001 sec)
+
+// * Diagnostic Output - MemoryDiagnoser *
+
+
+// ***** BenchmarkRunner: End *****
+Run time: 00:00:26 (26.29 sec), executed benchmarks: 2
+
+Global total time: 00:00:43 (43.16 sec), executed benchmarks: 2
+// * Artifacts cleanup *
+Artifacts cleanup is finished
