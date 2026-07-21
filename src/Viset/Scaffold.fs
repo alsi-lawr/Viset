@@ -20,6 +20,10 @@ module Scaffold =
 
         override settings.ToString() = settings.OutputPath
 
+    type private LegacyNeovimScaffold =
+        { QueryFile: string
+          AncestorDirectories: string list }
+
     [<Literal>]
     let private DefaultPageUrl =
         "data:text/html;charset=utf-8,%3C!doctype%20html%3E%3Chtml%20lang%3D%22en%22%3E%3Cmeta%20charset%3D%22utf-8%22%3E%3Cmeta%20name%3D%22viewport%22%20content%3D%22width%3Ddevice-width%2Cinitial-scale%3D1%22%3E%3Ctitle%3EViset%3C%2Ftitle%3E%3Cstyle%3Ehtml%2Cbody%7Bwidth%3A100%25%3Bheight%3A100%25%3Bmargin%3A0%7Dbody%7Bdisplay%3Agrid%3Bplace-items%3Acenter%3Bbackground%3A%23131a2a%3Bcolor%3A%23f5f7ff%3Bfont%3A600%2032px%20system-ui%7D%3C%2Fstyle%3E%3Cbody%3EViset%20is%20ready%3C%2Fbody%3E%3C%2Fhtml%3E"
@@ -35,14 +39,16 @@ module Scaffold =
           "README.md"
           ".gitignore"
           ".luarc.json"
-          Path.Combine(".viset", "viset.d.lua")
-          Path.Combine(".viset", "nvim", "queries", "lua", "injections.scm") ]
+          Path.Combine(".viset", "viset.d.lua") ]
 
-    let private generatedDirectoryNames =
-        [ ".viset"
-          Path.Combine(".viset", "nvim")
-          Path.Combine(".viset", "nvim", "queries")
-          Path.Combine(".viset", "nvim", "queries", "lua") ]
+    let private generatedDirectoryNames = [ ".viset" ]
+
+    let private legacyNeovimScaffold =
+        { QueryFile = Path.Combine(".viset", "nvim", "queries", "lua", "injections.scm")
+          AncestorDirectories =
+            [ Path.Combine(".viset", "nvim")
+              Path.Combine(".viset", "nvim", "queries")
+              Path.Combine(".viset", "nvim", "queries", "lua") ] }
 
     let private entryExists path =
         if File.Exists path || Directory.Exists path then
@@ -63,6 +69,27 @@ module Scaffold =
         generatedFileNames
         |> List.map (fun fileName -> Path.Combine(directory, fileName))
 
+    let private legacyAncestorPaths directory =
+        legacyNeovimScaffold.AncestorDirectories
+        |> List.map (fun path -> Path.Combine(directory, path))
+
+    let private validateForcedTarget (request: InitRequest) =
+        match request.TargetDirectory |> legacyAncestorPaths |> List.tryFind isLink with
+        | Some path -> Error(String.Concat("Legacy Neovim scaffold directory must not be a link: ", path))
+        | None ->
+            let legacyQuery =
+                Path.Combine(request.TargetDirectory, legacyNeovimScaffold.QueryFile)
+
+            if Directory.Exists legacyQuery && not (isLink legacyQuery) then
+                Error(String.Concat("A directory occupies the legacy Neovim scaffold file path: ", legacyQuery))
+            else
+                request.TargetDirectory
+                |> generatedPaths
+                |> List.tryFind Directory.Exists
+                |> function
+                    | Some path -> Error(String.Concat("A directory occupies a scaffold file path: ", path))
+                    | None -> Ok()
+
     let private validateTarget (request: InitRequest) =
         if isLink request.TargetDirectory then
             Error(String.Concat("Initialization target must not be a link: ", request.TargetDirectory))
@@ -76,12 +103,7 @@ module Scaffold =
         then
             Error "Scaffold editor-support directories must not be files or links."
         elif request.Force then
-            request.TargetDirectory
-            |> generatedPaths
-            |> List.tryFind Directory.Exists
-            |> function
-                | Some path -> Error(String.Concat("A directory occupies a scaffold file path: ", path))
-                | None -> Ok()
+            validateForcedTarget request
         else
             let conflicts = request.TargetDirectory |> generatedPaths |> List.filter entryExists
 
@@ -268,9 +290,9 @@ module Scaffold =
                ""
                "`.luarc.json` loads `.viset/viset.d.lua` for Viset API completion and diagnostics in Lua Language Server."
                ""
-               "For optional Neovim Tree-sitter highlighting of the TOML header and `viset.javascript` regions, add `.viset/nvim` to `runtimepath` and install the Lua, TOML, and JavaScript parsers."
+               "Install [`getviset/viset.nvim`](https://github.com/getviset/viset.nvim) with your Neovim plugin manager for TOML header and `viset.javascript` highlighting; no setup call is required."
                ""
-               "VS Code uses the LuaLS definitions but requires a separate compatible extension for embedded-language highlighting; it cannot consume the Tree-sitter query directly."
+               "The plugin requires Neovim 0.12 or newer and the Lua, TOML, and JavaScript Tree-sitter parsers. Run `:checkhealth viset` for diagnostics."
                "" |]
         )
 
@@ -291,6 +313,30 @@ module Scaffold =
         |> Option.iter (fun directory -> Directory.CreateDirectory directory |> ignore)
 
         File.WriteAllText(path, content, UTF8Encoding(false))
+
+    let private removeLegacyNeovimScaffold directory =
+        let ancestorPaths = legacyAncestorPaths directory
+
+        match ancestorPaths |> List.tryFind isLink with
+        | Some path -> invalidOp (String.Concat("Legacy Neovim scaffold directory must not be a link: ", path))
+        | None ->
+            let queryPath = Path.Combine(directory, legacyNeovimScaffold.QueryFile)
+
+            if isLink queryPath || File.Exists queryPath then
+                File.Delete queryPath
+            elif Directory.Exists queryPath then
+                invalidOp (String.Concat("A directory occupies the legacy Neovim scaffold file path: ", queryPath))
+
+            ancestorPaths
+            |> List.rev
+            |> List.iter (fun path ->
+                if isLink path then
+                    invalidOp (String.Concat("Legacy Neovim scaffold directory must not be a link: ", path))
+                elif
+                    Directory.Exists path
+                    && (Directory.EnumerateFileSystemEntries path |> Seq.isEmpty)
+                then
+                    Directory.Delete path)
 
     let run request =
         try
@@ -320,9 +366,8 @@ module Scaffold =
                         (Path.Combine(request.TargetDirectory, ".viset", "viset.d.lua"))
                         EditorSupport.LuaDefinitions
 
-                    writeFile
-                        (Path.Combine(request.TargetDirectory, ".viset", "nvim", "queries", "lua", "injections.scm"))
-                        EditorSupport.NeovimTreeSitterInjections
+                    if request.Force then
+                        removeLegacyNeovimScaffold request.TargetDirectory
 
                     Ok
                         { DirectoryPath = request.TargetDirectory

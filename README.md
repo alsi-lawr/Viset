@@ -75,6 +75,7 @@ multiple devices, framed captures, and continuous animated WebP recording.
 | **[Read the wiki](https://github.com/getviset/Viset/wiki)** | Install Viset and learn the capture format and Lua API. |
 | **[Try the examples](examples)** | Start small, then explore device and theme matrices. |
 | **[Review the benchmarks](benchmarks)** | See measured capture, encoder, pipeline, and decoder results. |
+| **[Use viset.nvim](https://github.com/getviset/viset.nvim)** | Add Neovim highlighting for Viset capture files. |
 | **[Contribute](CONTRIBUTING.md)** | Build, test, format, and propose changes. |
 
 ## Status

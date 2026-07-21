@@ -228,19 +228,22 @@ viset.snapshot()
             |> should equal false)
 
     [<Test; NonParallelizable>]
-    let ``the scaffold should include editor metadata and capture its example`` () =
+    let ``the initialized scaffold should contain exact editor files and standalone Neovim guidance`` () =
         use directory = createTemporaryDirectory "scaffold"
         let project = Path.Combine(directory.Path, "project")
 
         run binaryPath [ "init"; project ] directory.Path [] (TimeSpan.FromSeconds 30.0)
         |> requireSuccess
 
-        [ "capture.lua"
-          "README.md"
-          ".luarc.json"
-          ".viset/viset.d.lua"
-          ".viset/nvim/queries/lua/injections.scm" ]
-        |> List.iter (fun relativePath -> File.Exists(Path.Combine(project, relativePath)) |> should equal true)
+        assertInventory
+            project
+            [ ".gitignore"
+              ".luarc.json"
+              ".viset/viset.d.lua"
+              "README.md"
+              "capture.lua" ]
+
+        Directory.Exists(Path.Combine(project, ".viset", "nvim")) |> should equal false
 
         File.ReadAllText(Path.Combine(project, ".gitignore"))
         |> should contain "/output/"
@@ -251,11 +254,127 @@ viset.snapshot()
         File.ReadAllText(Path.Combine(project, ".viset", "viset.d.lua"))
         |> should contain "---@class VisetApi"
 
-        let injections =
-            File.ReadAllText(Path.Combine(project, ".viset", "nvim", "queries", "lua", "injections.scm"))
+        let readme = File.ReadAllText(Path.Combine(project, "README.md"))
+        readme |> should contain "https://github.com/getviset/viset.nvim"
+        readme |> should contain "Lua, TOML, and JavaScript Tree-sitter parsers"
+        readme |> should contain ":checkhealth viset"
+        readme |> should not' (contain ".viset/nvim")
+        readme |> should not' (contain "runtimepath")
+        readme |> should not' (contain "Tree-sitter query")
+        readme |> should not' (contain "VS Code")
 
-        injections |> should contain "@_javascript \"javascript\""
-        injections |> should contain "injection.language \"toml\""
+    [<Test; NonParallelizable>]
+    let ``the forced scaffold should safely remove only legacy Neovim support`` () =
+        use directory = createTemporaryDirectory "legacy-neovim-scaffold"
+
+        let initialize project force =
+            let arguments =
+                if force then
+                    [ "init"; project; "--force" ]
+                else
+                    [ "init"; project ]
+
+            run binaryPath arguments directory.Path [] (TimeSpan.FromSeconds 30.0)
+
+        let writeLegacyQuery nvimDirectory =
+            let luaDirectory = Path.Combine(nvimDirectory, "queries", "lua")
+            Directory.CreateDirectory luaDirectory |> ignore
+            let queryPath = Path.Combine(luaDirectory, "injections.scm")
+            File.WriteAllText(queryPath, "; legacy generated query\n")
+            queryPath
+
+        let migratedProject = Path.Combine(directory.Path, "migrated-project")
+        initialize migratedProject false |> requireSuccess
+        let migratedNvim = Path.Combine(migratedProject, ".viset", "nvim")
+        let migratedQuery = writeLegacyQuery migratedNvim
+        let projectNote = Path.Combine(migratedProject, ".viset", "project-note.txt")
+        File.WriteAllText(projectNote, "keep project note")
+
+        initialize migratedProject false |> requireFailure "use --force"
+        File.Exists migratedQuery |> should equal true
+        initialize migratedProject true |> requireSuccess
+        File.Exists migratedQuery |> should equal false
+
+        Directory.Exists(Path.Combine(migratedNvim, "queries", "lua"))
+        |> should equal false
+
+        Directory.Exists(Path.Combine(migratedNvim, "queries")) |> should equal false
+        Directory.Exists migratedNvim |> should equal false
+        File.ReadAllText projectNote |> should equal "keep project note"
+
+        assertInventory
+            migratedProject
+            [ ".gitignore"
+              ".luarc.json"
+              ".viset/project-note.txt"
+              ".viset/viset.d.lua"
+              "README.md"
+              "capture.lua" ]
+
+        let preservedProject = Path.Combine(directory.Path, "preserved-project")
+        initialize preservedProject false |> requireSuccess
+        let preservedNvim = Path.Combine(preservedProject, ".viset", "nvim")
+        let preservedQuery = writeLegacyQuery preservedNvim
+        let userFile = Path.Combine(preservedNvim, "user-notes.txt")
+        File.WriteAllText(userFile, "keep Neovim note")
+
+        initialize preservedProject true |> requireSuccess
+        File.Exists preservedQuery |> should equal false
+
+        Directory.Exists(Path.Combine(preservedNvim, "queries", "lua"))
+        |> should equal false
+
+        Directory.Exists(Path.Combine(preservedNvim, "queries")) |> should equal false
+        Directory.Exists preservedNvim |> should equal true
+        File.ReadAllText userFile |> should equal "keep Neovim note"
+
+        assertInventory
+            preservedProject
+            [ ".gitignore"
+              ".luarc.json"
+              ".viset/nvim/user-notes.txt"
+              ".viset/viset.d.lua"
+              "README.md"
+              "capture.lua" ]
+
+        let combine root segments =
+            segments |> List.fold (fun path segment -> Path.Combine(path, segment)) root
+
+        [ "nvim", [ ".viset" ], "nvim", [ "queries"; "lua" ]
+          "queries", [ ".viset"; "nvim" ], "queries", [ "lua" ]
+          "lua", [ ".viset"; "nvim"; "queries" ], "lua", [] ]
+        |> List.iter (fun (label, parentSegments, linkName, outsideSegments) ->
+            let linkedProject =
+                Path.Combine(directory.Path, String.Concat("linked-", label, "-project"))
+
+            initialize linkedProject false |> requireSuccess
+
+            let outsideDirectory =
+                Path.Combine(directory.Path, String.Concat("outside-", label))
+
+            let outsideQueryDirectory = combine outsideDirectory outsideSegments
+            Directory.CreateDirectory outsideQueryDirectory |> ignore
+            let outsideQuery = Path.Combine(outsideQueryDirectory, "injections.scm")
+            File.WriteAllText(outsideQuery, "; legacy generated query\n")
+            let linkParent = combine linkedProject parentSegments
+            Directory.CreateDirectory linkParent |> ignore
+
+            Directory.CreateSymbolicLink(Path.Combine(linkParent, linkName), outsideDirectory)
+            |> ignore
+
+            initialize linkedProject true |> requireFailure "must not be a link"
+            File.ReadAllText outsideQuery |> should equal "; legacy generated query\n"
+
+            File.Exists(Path.Combine(linkedProject, ".viset", "viset.d.lua"))
+            |> should equal true)
+
+    [<Test; NonParallelizable>]
+    let ``the scaffold should capture its example and apply interactive settings`` () =
+        use directory = createTemporaryDirectory "scaffold-capture"
+        let project = Path.Combine(directory.Path, "project")
+
+        run binaryPath [ "init"; project ] directory.Path [] (TimeSpan.FromSeconds 30.0)
+        |> requireSuccess
 
         run
             binaryPath
