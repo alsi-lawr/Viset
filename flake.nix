@@ -131,7 +131,7 @@
 
           meta = {
             description = "Script reproducible browser screenshots and animations";
-            homepage = "https://github.com/alsi-lawr/Viset";
+            homepage = "https://github.com/getviset/Viset";
             license = lib.licenses.mit;
             mainProgram = "viset";
             platforms = systems;

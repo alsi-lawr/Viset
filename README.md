@@ -3,15 +3,15 @@
   <h1>Viset</h1>
   <p><strong>Write browser screenshots and animations as code for testing and demoing your web apps.</strong></p>
   <p>
-    <a href="https://github.com/alsi-lawr/Viset/actions/workflows/nix.yml"><img src="https://github.com/alsi-lawr/Viset/actions/workflows/nix.yml/badge.svg" alt="Nix build"></a>
-    <a href="https://github.com/alsi-lawr/Viset/actions/workflows/portability.yml"><img src="https://github.com/alsi-lawr/Viset/actions/workflows/portability.yml/badge.svg" alt="Native AOT portability"></a>
+    <a href="https://github.com/getviset/Viset/actions/workflows/nix.yml"><img src="https://github.com/getviset/Viset/actions/workflows/nix.yml/badge.svg" alt="Nix build"></a>
+    <a href="https://github.com/getviset/Viset/actions/workflows/portability.yml"><img src="https://github.com/getviset/Viset/actions/workflows/portability.yml/badge.svg" alt="Native AOT portability"></a>
     <a href="https://dotnet.microsoft.com/download/dotnet/10.0"><img src="https://img.shields.io/badge/.NET-10.0-512bd4.svg?logo=dotnet&amp;logoColor=white" alt=".NET 10"></a>
     <a href="https://fsharp.org/"><img src="https://img.shields.io/badge/F%23-378bba.svg?logo=fsharp&amp;logoColor=white" alt="F#"></a>
     <a href="https://nixos.org/"><img src="https://img.shields.io/badge/Nix-flake-5277c3.svg?logo=nixos&amp;logoColor=white" alt="Nix flake"></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-7c3aed.svg" alt="MIT license"></a>
   </p>
   <p>
-    <a href="https://github.com/alsi-lawr/Viset/wiki">Documentation</a>
+    <a href="https://github.com/getviset/Viset/wiki">Documentation</a>
     &nbsp;&middot;&nbsp;
     <a href="examples">Examples</a>
     &nbsp;&middot;&nbsp;
@@ -26,8 +26,8 @@
 With [Nix](https://nixos.org/) installed:
 
 ```sh
-nix run github:alsi-lawr/Viset -- init demo
-nix run github:alsi-lawr/Viset -- capture demo/capture.lua
+nix run github:getviset/Viset -- init demo
+nix run github:getviset/Viset -- capture demo/capture.lua
 ```
 
 Open `demo/output/example.png`. That is a complete, self-contained first
@@ -72,7 +72,7 @@ multiple devices, framed captures, and continuous animated WebP recording.
 
 | | |
 | --- | --- |
-| **[Read the wiki](https://github.com/alsi-lawr/Viset/wiki)** | Install Viset and learn the capture format and Lua API. |
+| **[Read the wiki](https://github.com/getviset/Viset/wiki)** | Install Viset and learn the capture format and Lua API. |
 | **[Try the examples](examples)** | Start small, then explore device and theme matrices. |
 | **[Review the benchmarks](benchmarks)** | See measured capture, encoder, pipeline, and decoder results. |
 | **[Contribute](CONTRIBUTING.md)** | Build, test, format, and propose changes. |

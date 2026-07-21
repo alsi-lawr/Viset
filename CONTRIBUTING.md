@@ -10,7 +10,7 @@ The Nix development shell pins the .NET SDK, browser, media tools, formatters,
 and supporting utilities:
 
 ```sh
-git clone https://github.com/alsi-lawr/Viset.git
+git clone https://github.com/getviset/Viset.git
 cd Viset
 nix develop
 dotnet restore Viset.slnx --locked-mode
